@@ -31,24 +31,25 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _signUp() {
-    FocusScope.of(context).unfocus();
+  FocusScope.of(context).unfocus();
 
-    if (!_emailValid) {
-      _showMessage('Enter a valid email');
-      return;
-    }
-    if (_passwordController.text.length < 8) {
-      _showMessage('Password must be at least 8 characters');
-      return;
-    }
-    if (_passwordController.text != _confirmController.text) {
-      _showMessage('Passwords do not match');
-      return;
-    }
-
-    // TODO: ekhane sign up API / Firebase call korbe
-    _showMessage('Sign up successful');
+  if (!_emailValid) {
+    _showMessage('Enter a valid email');
+    return;
   }
+
+  if (_passwordController.text.length < 8) {
+    _showMessage('Password must be at least 8 characters');
+    return;
+  }
+
+  if (_passwordController.text != _confirmController.text) {
+    _showMessage('Passwords do not match');
+    return;
+  }
+
+  Navigator.pushNamed(context, '/authorize');
+}
 
   // Label + rounded text field
   Widget _field({
@@ -97,7 +98,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // Password er eye icon
+  // Password eye icon
   Widget _eyeButton(bool hidden, VoidCallback onTap) {
     return IconButton(
       onPressed: onTap,
@@ -125,7 +126,7 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Email (thik hole black check icon ashe)
+              // Email 
               _field(
                 label: 'Email',
                 hint: 'example@gmail.com',
