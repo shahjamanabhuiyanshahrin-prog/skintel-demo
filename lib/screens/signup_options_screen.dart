@@ -43,7 +43,7 @@ class SignupOptionsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Upore photo + "Skintel" writing
+          // photo + "Skintel" writing
           Expanded(
             child: ClipRRect(
               borderRadius:
@@ -75,7 +75,7 @@ class SignupOptionsScreen extends StatelessWidget {
             ),
           ),
 
-          // Neeche buttons
+          // buttons
           SafeArea(
             top: false,
             child: Padding(
@@ -136,7 +136,7 @@ class SignupOptionsScreen extends StatelessWidget {
                       ),
                       GestureDetector(
                         onTap: () {
-                          // TODO: tomar Login screen e niye jao
+                          
                         },
                         child: const Text(
                           'Log in',
