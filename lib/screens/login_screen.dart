@@ -1,181 +1,282 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/auth_service.dart';
+import '../widgets/auth_widgets.dart';
 import 'forgot_password_screen.dart';
+import 'verify_code_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  bool obscure = true;
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    FocusScope.of(context).unfocus();
+
+    final email = _email.text.trim();
+    final password = _password.text;
+
+    if (!isValidEmail(email)) {
+      showAuthMessage(context, 'Enter a valid email');
+      return;
+    }
+
+    if (password.isEmpty) {
+      showAuthMessage(context, 'Enter your password');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      await AuthService.signIn(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      // Login successful
+      showAuthMessage(
+        context,
+        'Login successful!',
+        error: false,
+      );
+
+      // Temporary screen until Home Screen is created
+      await Future.delayed(
+        const Duration(milliseconds: 700),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LoginSuccessScreen(),
+        ),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+
+      if (e.message
+          .toLowerCase()
+          .contains('email not confirmed')) {
+        try {
+          await AuthService.resendSignupCode(email);
+        } catch (_) {}
+
+        if (!mounted) return;
+
+        showAuthMessage(
+          context,
+          'Please verify your email first. We sent you a code.',
+          error: false,
+        );
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VerifyCodeScreen(
+              email: email,
+              purpose: CodePurpose.signup,
+            ),
+          ),
+        );
+      } else {
+        showAuthMessage(
+          context,
+          AuthService.friendlyError(e),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      showAuthMessage(
+        context,
+        AuthService.friendlyError(e),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AuthPageLayout(
+      title: 'Log in',
+      subtitle: 'Welcome back! Please enter your details.',
+      showBack: Navigator.of(context).canPop(),
+      children: [
+        AuthTextField(
+          label: 'Email',
+          hint: 'example@gmail.com',
+          controller: _email,
+          enabled: !_loading,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+        ),
+
+        const SizedBox(height: 16),
+
+        AuthTextField(
+          label: 'Password',
+          hint: 'Enter your password',
+          controller: _password,
+          isPassword: true,
+          enabled: !_loading,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _login(),
+        ),
+
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _loading
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            ForgotPasswordScreen(
+                          initialEmail:
+                              _email.text.trim(),
+                        ),
+                      ),
+                    );
+                  },
+            child: const Text(
+              'Forgot password?',
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        AuthButton(
+          label: 'Log in',
+          loading: _loading,
+          onPressed: _login,
+        ),
+
+        const SizedBox(height: 20),
+
+        AuthFooterLink(
+          text: "Don't have an account? ",
+          action: 'Sign up',
+          onTap: () =>
+              Navigator.pushReplacementNamed(
+            context,
+            '/signup',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+// --------------------------------------------------
+// TEMPORARY LOGIN SUCCESS SCREEN
+// --------------------------------------------------
+
+class LoginSuccessScreen extends StatelessWidget {
+  const LoginSuccessScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
+      body: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: ListView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 24),
-              const Text(
-                'Log in',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              const Icon(
+                Icons.check_circle_outline,
+                size: 70,
+                color: Colors.black,
               ),
-              const SizedBox(height: 28),
+
+              const SizedBox(height: 20),
+
               const Text(
-                'Email',
-                style: TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-              const SizedBox(height: 6),
-              _field(hint: 'Enter email'),
-              const SizedBox(height: 16),
-              const Text(
-                'Password',
-                style: TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-              const SizedBox(height: 6),
-              _field(
-                hint: 'Enter password',
-                obscure: obscure,
-                suffix: IconButton(
-                  icon: Icon(
-                    obscure
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 20,
-                    color: Colors.grey,
-                  ),
-                  onPressed: () => setState(() => obscure = !obscure),
+                'Login Successful!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
+
+              const SizedBox(height: 10),
+
+              const Text(
+                'Your Skintel account has been logged in successfully.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                ),
+              ),
+
+              const SizedBox(height: 30),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ForgotPasswordScreen(),
-                      ),
-                    );
+                    Navigator.pop(context);
                   },
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  child: const Text(
-                    'Forgot password?',
-                    style: TextStyle(fontSize: 12, color: Colors.black87),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              _blackButton('Log in', () {
-                // Login logic goes here later
-              }),
-              const SizedBox(height: 24),
-              Row(
-                children: const [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'Or Login with',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _socialBox(Icons.facebook, Colors.blue),
-                  const SizedBox(width: 14),
-                  _socialBox(Icons.g_mobiledata, Colors.red),
-                  const SizedBox(width: 14),
-                  _socialBox(Icons.apple, Colors.black),
-                ],
-              ),
-              const SizedBox(height: 28),
-              Center(
-                child: RichText(
-                  text: const TextSpan(
-                    style: TextStyle(fontSize: 13, color: Colors.black54),
-                    children: [
-                      TextSpan(text: "Don't have an account? "),
-                      TextSpan(
-                        text: 'Sign up',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  child: const Text(
+                    'Back',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  Widget _field({required String hint, bool obscure = false, Widget? suffix}) {
-    return TextField(
-      obscureText: obscure,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-        filled: true,
-        fillColor: Colors.grey.shade100,
-        suffixIcon: suffix,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _blackButton(String text, VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _socialBox(IconData icon, Color color) {
-    return Container(
-      width: 60,
-      height: 44,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icon, color: color),
     );
   }
 }

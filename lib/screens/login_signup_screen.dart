@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'signup_options_screen.dart';
 
 class LoginSignupScreen extends StatelessWidget {
   const LoginSignupScreen({super.key});
@@ -10,14 +9,13 @@ class LoginSignupScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background photo
+          // Background photo (na thakle color dekhabe)
           Image.asset(
             'assets/images/auth_bg.jpg',
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
                 Container(color: const Color(0xFF8E9A80)),
           ),
-
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
@@ -41,9 +39,7 @@ class LoginSignupScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // TODO: tomar Login screen e niye jao
-                      },
+                      onPressed: () => Navigator.pushNamed(context, '/login'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,
@@ -66,14 +62,8 @@ class LoginSignupScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SignupOptionsScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/signup-options'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,

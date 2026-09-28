@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'signup_screen.dart';
+
+import '../widgets/auth_widgets.dart';
 
 class SignupOptionsScreen extends StatelessWidget {
   const SignupOptionsScreen({super.key});
@@ -43,7 +44,7 @@ class SignupOptionsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // photo + "Skintel" writing
+          // Upore photo + "Skintel" writing
           Expanded(
             child: ClipRRect(
               borderRadius:
@@ -75,7 +76,7 @@ class SignupOptionsScreen extends StatelessWidget {
             ),
           ),
 
-          // buttons
+          // Neeche buttons
           SafeArea(
             top: false,
             child: Padding(
@@ -93,21 +94,15 @@ class SignupOptionsScreen extends StatelessWidget {
                     label: 'Sign Up with Apple',
                     dark: true,
                     icon: const Icon(Icons.apple, size: 20),
-                    onTap: () {
-                      // TODO: Apple sign in
-                    },
+                    onTap: () =>
+                        showAuthMessage(context, 'Apple sign in coming soon'),
                   ),
                   const SizedBox(height: 12),
 
                   _socialButton(
                     label: 'Sign Up with Email',
                     icon: const Icon(Icons.mail, size: 16),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SignupScreen()),
-                      );
-                    },
+                    onTap: () => Navigator.pushNamed(context, '/signup'),
                   ),
                   const SizedBox(height: 12),
 
@@ -121,33 +116,15 @@ class SignupOptionsScreen extends StatelessWidget {
                         color: Color(0xFF4285F4),
                       ),
                     ),
-                    onTap: () {
-                      // TODO: Google sign in
-                    },
+                    onTap: () =>
+                        showAuthMessage(context, 'Google sign in coming soon'),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Already have an account? ',
-                        style: TextStyle(fontSize: 12, color: Color(0xFF8E8E93)),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          
-                        },
-                        child: const Text(
-                          'Log in',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ],
+                  AuthFooterLink(
+                    text: 'Already have an account? ',
+                    action: 'Log in',
+                    onTap: () => Navigator.pushNamed(context, '/login'),
                   ),
                 ],
               ),
