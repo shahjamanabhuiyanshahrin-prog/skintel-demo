@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../services/auth_service.dart';
 import '../widgets/auth_widgets.dart';
 import 'forgot_password_screen.dart';
 import 'verify_code_screen.dart';
+import '../welcome_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -54,32 +54,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Login successful
-      showAuthMessage(
-        context,
-        'Login successful!',
-        error: false,
-      );
-
-      // Temporary screen until Home Screen is created
-      await Future.delayed(
-        const Duration(milliseconds: 700),
-      );
-
-      if (!mounted) return;
-
+      // Login successful → directly go to Welcome Screen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const LoginSuccessScreen(),
+          builder: (_) => const WelcomeScreen(),
         ),
       );
     } on AuthException catch (e) {
       if (!mounted) return;
 
-      if (e.message
-          .toLowerCase()
-          .contains('email not confirmed')) {
+      if (e.message.toLowerCase().contains('email not confirmed')) {
         try {
           await AuthService.resendSignupCode(email);
         } catch (_) {}
@@ -160,10 +145,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            ForgotPasswordScreen(
-                          initialEmail:
-                              _email.text.trim(),
+                        builder: (_) => ForgotPasswordScreen(
+                          initialEmail: _email.text.trim(),
                         ),
                       ),
                     );
@@ -192,91 +175,12 @@ class _LoginScreenState extends State<LoginScreen> {
         AuthFooterLink(
           text: "Don't have an account? ",
           action: 'Sign up',
-          onTap: () =>
-              Navigator.pushReplacementNamed(
+          onTap: () => Navigator.pushReplacementNamed(
             context,
             '/signup',
           ),
         ),
       ],
-    );
-  }
-}
-
-
-// --------------------------------------------------
-// TEMPORARY LOGIN SUCCESS SCREEN
-// --------------------------------------------------
-
-class LoginSuccessScreen extends StatelessWidget {
-  const LoginSuccessScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle_outline,
-                size: 70,
-                color: Colors.black,
-              ),
-
-              const SizedBox(height: 20),
-
-              const Text(
-                'Login Successful!',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                'Your Skintel account has been logged in successfully.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black54,
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Back',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

@@ -22,9 +22,10 @@ class AuthorizeAccountScreen extends StatefulWidget {
 
 class _AuthorizeAccountScreenState
     extends State<AuthorizeAccountScreen> {
-  // OTP length = 6
+  // 6-digit OTP
   static const int _length = 6;
 
+  // Resend timer
   static const int _startSeconds = 34;
 
   final TextEditingController _controller =
@@ -56,19 +57,31 @@ class _AuthorizeAccountScreenState
     _startTimer();
   }
 
+  // ==========================================
+  // OTP TEXT CHANGE
+  // ==========================================
+
   void _onTextChanged() {
     final value = _controller.text;
 
-    if (value == _code) return;
+    if (value == _code) {
+      return;
+    }
 
     setState(() {
       _code = value;
 
+      // As soon as user starts entering a new code,
+      // remove previous error.
       if (_hasError) {
         _hasError = false;
       }
     });
   }
+
+  // ==========================================
+  // TIMER
+  // ==========================================
 
   void _startTimer() {
     Future.doWhile(() async {
@@ -76,7 +89,9 @@ class _AuthorizeAccountScreenState
         const Duration(seconds: 1),
       );
 
-      if (!mounted) return false;
+      if (!mounted) {
+        return false;
+      }
 
       if (_seconds > 0) {
         setState(() {
@@ -90,8 +105,14 @@ class _AuthorizeAccountScreenState
     });
   }
 
+  // ==========================================
+  // RESEND OTP
+  // ==========================================
+
   Future<void> _resendCode() async {
-    if (_seconds > 0) return;
+    if (_seconds > 0 || _isLoading) {
+      return;
+    }
 
     try {
       setState(() {
@@ -99,13 +120,14 @@ class _AuthorizeAccountScreenState
         _hasError = false;
       });
 
-      await Supabase.instance.client.auth
-          .resend(
+      await Supabase.instance.client.auth.resend(
         type: OtpType.signup,
         email: widget.email,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       _controller.clear();
 
@@ -113,6 +135,7 @@ class _AuthorizeAccountScreenState
         _code = '';
         _seconds = _startSeconds;
         _isLoading = false;
+        _hasError = false;
       });
 
       _focus.requestFocus();
@@ -127,10 +150,13 @@ class _AuthorizeAccountScreenState
         ),
       );
     } on AuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoading = false;
+        _hasError = true;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,10 +165,13 @@ class _AuthorizeAccountScreenState
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoading = false;
+        _hasError = true;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -155,9 +184,14 @@ class _AuthorizeAccountScreenState
     }
   }
 
+  // ==========================================
+  // VERIFY REAL SUPABASE OTP
+  // ==========================================
+
   Future<void> _verifyCode() async {
     FocusScope.of(context).unfocus();
 
+    // Check 6 digits
     if (_code.length != _length) {
       setState(() {
         _hasError = true;
@@ -180,17 +214,25 @@ class _AuthorizeAccountScreenState
     });
 
     try {
-      // REAL SUPABASE OTP VERIFICATION
+      // ==========================================
+      // REAL SUPABASE VERIFICATION
+      // ==========================================
+
       await Supabase.instance.client.auth.verifyOTP(
         type: OtpType.signup,
         token: _code,
         email: widget.email,
       );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
+      // IMPORTANT:
+      // Clear any previous error after successful verification.
       setState(() {
         _isLoading = false;
+        _hasError = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,14 +243,19 @@ class _AuthorizeAccountScreenState
         ),
       );
 
-      // Go to Home after successful verification
+      // ==========================================
+      // GO TO HOME
+      // ==========================================
+
       Navigator.pushNamedAndRemoveUntil(
         context,
-        '/home',
+        '/welcome',
         (route) => false,
       );
     } on AuthException catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoading = false;
@@ -221,7 +268,9 @@ class _AuthorizeAccountScreenState
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isLoading = false;
@@ -237,6 +286,10 @@ class _AuthorizeAccountScreenState
       );
     }
   }
+
+  // ==========================================
+  // OTP BOXES
+  // ==========================================
 
   Widget _buildCodeBoxes() {
     return GestureDetector(
@@ -259,13 +312,14 @@ class _AuthorizeAccountScreenState
             children: [
               for (var i = 0; i < _length; i++) ...[
                 if (i > 0)
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 6),
                 _buildBox(i),
               ],
             ],
           ),
 
           // Hidden TextField
+          // This receives the actual keyboard input.
           Positioned(
             left: 0,
             right: 0,
@@ -286,7 +340,7 @@ class _AuthorizeAccountScreenState
                   ),
                 ],
                 onSubmitted: (_) {
-                  if (_isComplete) {
+                  if (_isComplete && !_isLoading) {
                     _verifyCode();
                   }
                 },
@@ -315,7 +369,7 @@ class _AuthorizeAccountScreenState
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
-      width: 64,
+      width: 42,
       height: 72,
       alignment: Alignment.center,
       decoration: BoxDecoration(
@@ -337,6 +391,10 @@ class _AuthorizeAccountScreenState
     );
   }
 
+  // ==========================================
+  // TIMER FORMAT
+  // ==========================================
+
   String _formatTimer() {
     final minutes =
         (_seconds ~/ 60).toString().padLeft(2, '0');
@@ -347,6 +405,10 @@ class _AuthorizeAccountScreenState
     return '$minutes:$seconds';
   }
 
+  // ==========================================
+  // DISPOSE
+  // ==========================================
+
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
@@ -355,6 +417,10 @@ class _AuthorizeAccountScreenState
 
     super.dispose();
   }
+
+  // ==========================================
+  // UI
+  // ==========================================
 
   @override
   Widget build(BuildContext context) {
@@ -373,6 +439,7 @@ class _AuthorizeAccountScreenState
               children: [
                 const SizedBox(height: 30),
 
+                // Title
                 Text(
                   'Authorize Account',
                   textAlign: TextAlign.center,
@@ -385,6 +452,7 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 14),
 
+                // Description
                 Text(
                   'Enter the 6-digit verification code sent to',
                   textAlign: TextAlign.center,
@@ -397,6 +465,7 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 6),
 
+                // Email
                 Text(
                   widget.email,
                   textAlign: TextAlign.center,
@@ -409,10 +478,12 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 40),
 
+                // 6 OTP BOXES
                 _buildCodeBoxes(),
 
                 const SizedBox(height: 14),
 
+                // Error message
                 if (_hasError)
                   Text(
                     'Invalid verification code',
@@ -425,6 +496,7 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 30),
 
+                // Timer
                 Text(
                   _seconds > 0
                       ? 'Resend code in ${_formatTimer()}'
@@ -437,6 +509,7 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 8),
 
+                // Resend
                 TextButton(
                   onPressed:
                       _seconds == 0 && !_isLoading
@@ -456,6 +529,7 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 24),
 
+                // Verify button
                 SizedBox(
                   width: double.infinity,
                   height: 54,
@@ -495,10 +569,13 @@ class _AuthorizeAccountScreenState
 
                 const SizedBox(height: 30),
 
+                // Back
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          Navigator.pop(context);
+                        },
                   child: Text(
                     'Back',
                     style: GoogleFonts.inter(

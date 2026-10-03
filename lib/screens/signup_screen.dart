@@ -21,6 +21,11 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _hideConfirm = true;
   bool _isLoading = false;
 
+  // Track whether user has started typing
+  bool _nameTouched = false;
+  bool _ageTouched = false;
+  bool _emailTouched = false;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -31,35 +36,55 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  bool get _emailValid =>
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-          .hasMatch(_emailController.text.trim());
+  // ==============================
+  // VALIDATION
+  // ==============================
 
-  void _showMessage(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+  bool get _nameValid {
+    final name = _nameController.text.trim();
+
+    if (name.isEmpty) return false;
+
+    // Only letters and spaces
+    return RegExp(r"^[a-zA-Z]+(?:[ .'-][a-zA-Z]+)*$").hasMatch(name);
   }
+
+  bool get _ageValid {
+    final age = int.tryParse(_ageController.text.trim());
+
+    if (age == null) return false;
+
+    return age >= 13 && age <= 100;
+  }
+
+  bool get _emailValid {
+    return RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(_emailController.text.trim());
+  }
+
+  // ==============================
+  // SIGN UP
+  // ==============================
 
   Future<void> _signUp() async {
     FocusScope.of(context).unfocus();
 
+    setState(() {
+      _nameTouched = true;
+      _ageTouched = true;
+      _emailTouched = true;
+    });
+
     // Name validation
-    if (_nameController.text.trim().isEmpty) {
-      _showMessage('Please enter your name');
+    if (!_nameValid) {
+      _showMessage('Write a valid name');
       return;
     }
 
     // Age validation
-    if (_ageController.text.trim().isEmpty) {
-      _showMessage('Please enter your age');
-      return;
-    }
-
-    final age = int.tryParse(_ageController.text.trim());
-
-    if (age == null || age < 13 || age > 100) {
-      _showMessage('Please enter a valid age');
+    if (!_ageValid) {
+      _showMessage('Write a valid age');
       return;
     }
 
@@ -71,7 +96,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
     // Email validation
     if (!_emailValid) {
-      _showMessage('Enter a valid email');
+      _showMessage('Write a valid email');
       return;
     }
 
@@ -104,15 +129,10 @@ class _SignupScreenState extends State<SignupScreen> {
       if (!mounted) return;
 
       if (response.user != null) {
-        // Signup successful.
-        // Supabase will send the real random 6-digit OTP
-        // to the user's email.
-
         _showMessage(
           'Account created. Please check your email for the 6-digit code.',
         );
 
-        // Pass the email to Authorize Account screen.
         Navigator.pushNamed(
           context,
           '/authorize',
@@ -138,7 +158,37 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // Label + rounded text field
+  // ==============================
+  // MESSAGE
+  // ==============================
+
+  void _showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  // ==============================
+  // VALIDATION ICON
+  // ==============================
+
+  Widget? _validationIcon({
+    required bool touched,
+    required bool valid,
+  }) {
+    if (!touched) return null;
+
+    return Icon(
+      valid ? Icons.check_circle : Icons.cancel,
+      color: valid ? Colors.black : const Color(0xFFD94A4A),
+      size: 20,
+    );
+  }
+
+  // ==============================
+  // NORMAL TEXT FIELD
+  // ==============================
+
   Widget _field({
     required String label,
     required String hint,
@@ -147,6 +197,7 @@ class _SignupScreenState extends State<SignupScreen> {
     TextInputType? keyboardType,
     Widget? suffix,
     ValueChanged<String>? onChanged,
+    String? errorText,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +209,9 @@ class _SignupScreenState extends State<SignupScreen> {
             fontWeight: FontWeight.w500,
           ),
         ),
+
         const SizedBox(height: 6),
+
         TextField(
           controller: controller,
           obscureText: obscure,
@@ -171,33 +224,56 @@ class _SignupScreenState extends State<SignupScreen> {
               fontSize: 14,
               color: Color(0xFF9A9A9A),
             ),
+
             suffixIcon: suffix,
+
             filled: true,
             fillColor: const Color(0xFFFAFAFA),
             isDense: true,
+
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 14,
             ),
+
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: Color(0xFFE5E5E5),
+              borderSide: BorderSide(
+                color: errorText != null
+                    ? const Color(0xFFD94A4A)
+                    : const Color(0xFFE5E5E5),
               ),
             ),
+
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(
-                color: Colors.black,
+              borderSide: BorderSide(
+                color: errorText != null
+                    ? const Color(0xFFD94A4A)
+                    : Colors.black,
               ),
             ),
           ),
         ),
+
+        if (errorText != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            errorText,
+            style: const TextStyle(
+              fontSize: 11,
+              color: Color(0xFFD94A4A),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  // Password eye icon
+  // ==============================
+  // PASSWORD EYE ICON
+  // ==============================
+
   Widget _eyeButton(
     bool hidden,
     VoidCallback onTap,
@@ -214,7 +290,10 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // Gender dropdown
+  // ==============================
+  // GENDER
+  // ==============================
+
   Widget _genderField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +305,9 @@ class _SignupScreenState extends State<SignupScreen> {
             fontWeight: FontWeight.w500,
           ),
         ),
+
         const SizedBox(height: 6),
+
         DropdownButtonFormField<String>(
           value: _selectedGender,
           decoration: InputDecoration(
@@ -235,18 +316,22 @@ class _SignupScreenState extends State<SignupScreen> {
               fontSize: 14,
               color: Color(0xFF9A9A9A),
             ),
+
             filled: true,
             fillColor: const Color(0xFFFAFAFA),
+
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
               vertical: 14,
             ),
+
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
                 color: Color(0xFFE5E5E5),
               ),
             ),
+
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(
@@ -254,6 +339,7 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
           ),
+
           items: const [
             DropdownMenuItem(
               value: 'Male',
@@ -272,6 +358,7 @@ class _SignupScreenState extends State<SignupScreen> {
               child: Text('Prefer not to say'),
             ),
           ],
+
           onChanged: (value) {
             setState(() {
               _selectedGender = value;
@@ -282,10 +369,15 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // ==============================
+  // BUILD
+  // ==============================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
@@ -294,6 +386,7 @@ class _SignupScreenState extends State<SignupScreen> {
             24,
             24,
           ),
+
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -307,51 +400,99 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 32),
 
-              // Name
+              // ==========================
+              // NAME
+              // ==========================
+
               _field(
                 label: 'Name',
                 hint: 'Enter your name',
                 controller: _nameController,
                 keyboardType: TextInputType.name,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Age
-              _field(
-                label: 'Age',
-                hint: 'Enter your age',
-                controller: _ageController,
-                keyboardType: TextInputType.number,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Gender
-              _genderField(),
-
-              const SizedBox(height: 16),
-
-              // Email
-              _field(
-                label: 'Email',
-                hint: 'example@gmail.com',
-                controller: _emailController,
-                keyboardType:
-                    TextInputType.emailAddress,
-                onChanged: (_) => setState(() {}),
-                suffix: _emailValid
-                    ? const Icon(
-                        Icons.check_circle,
-                        color: Colors.black,
-                        size: 20,
-                      )
+                onChanged: (_) {
+                  setState(() {
+                    _nameTouched = true;
+                  });
+                },
+                suffix: _validationIcon(
+                  touched: _nameTouched,
+                  valid: _nameValid,
+                ),
+                errorText: _nameTouched &&
+                        _nameController.text.isNotEmpty &&
+                        !_nameValid
+                    ? 'Write a valid name'
                     : null,
               ),
 
               const SizedBox(height: 16),
 
-              // Create password
+              // ==========================
+              // AGE
+              // ==========================
+
+              _field(
+                label: 'Age',
+                hint: 'Enter your age',
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) {
+                  setState(() {
+                    _ageTouched = true;
+                  });
+                },
+                suffix: _validationIcon(
+                  touched: _ageTouched,
+                  valid: _ageValid,
+                ),
+                errorText: _ageTouched &&
+                        _ageController.text.isNotEmpty &&
+                        !_ageValid
+                    ? 'Write a valid age'
+                    : null,
+              ),
+
+              const SizedBox(height: 16),
+
+              // ==========================
+              // GENDER
+              // ==========================
+
+              _genderField(),
+
+              const SizedBox(height: 16),
+
+              // ==========================
+              // EMAIL
+              // ==========================
+
+              _field(
+                label: 'Email',
+                hint: 'example@gmail.com',
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                onChanged: (_) {
+                  setState(() {
+                    _emailTouched = true;
+                  });
+                },
+                suffix: _validationIcon(
+                  touched: _emailTouched,
+                  valid: _emailValid,
+                ),
+                errorText: _emailTouched &&
+                        _emailController.text.isNotEmpty &&
+                        !_emailValid
+                    ? 'Write a valid email'
+                    : null,
+              ),
+
+              const SizedBox(height: 16),
+
+              // ==========================
+              // PASSWORD
+              // ==========================
+
               _field(
                 label: 'Create a password',
                 hint: 'must be 8 characters',
@@ -368,7 +509,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 16),
 
-              // Confirm password
+              // ==========================
+              // CONFIRM PASSWORD
+              // ==========================
+
               _field(
                 label: 'Confirm password',
                 hint: 'repeat password',
@@ -385,26 +529,33 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 32),
 
-              // Sign Up button
+              // ==========================
+              // SIGN UP BUTTON
+              // ==========================
+
               SizedBox(
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton(
                   onPressed:
                       _isLoading ? null : _signUp,
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     foregroundColor: Colors.white,
                     elevation: 0,
+
                     textStyle: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
+
                     shape: RoundedRectangleBorder(
                       borderRadius:
                           BorderRadius.circular(6),
                     ),
                   ),
+
                   child: _isLoading
                       ? const SizedBox(
                           width: 20,
@@ -421,7 +572,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 24),
 
-              // Terms text
+              // ==========================
+              // TERMS
+              // ==========================
+
               const Center(
                 child: Text.rich(
                   TextSpan(
@@ -430,12 +584,14 @@ class _SignupScreenState extends State<SignupScreen> {
                       height: 1.5,
                       color: Color(0xFF8E8E93),
                     ),
+
                     children: [
                       TextSpan(
                         text:
                             'By creating an account or signing you\n'
                             'agree to our ',
                       ),
+
                       TextSpan(
                         text: 'Terms and Conditions',
                         style: TextStyle(
@@ -447,6 +603,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ],
                   ),
+
                   textAlign: TextAlign.center,
                 ),
               ),

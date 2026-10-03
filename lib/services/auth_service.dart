@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Shob Supabase auth call ekhane. Screen gulo shudhu ei class use kore.
+
 class AuthService {
   AuthService._();
 

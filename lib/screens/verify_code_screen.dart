@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../services/auth_service.dart';
 import '../widgets/auth_widgets.dart';
+import 'new_password_screen.dart';
 
 enum CodePurpose { signup, recovery }
 
@@ -155,6 +156,7 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
     });
 
     try {
+      // SIGNUP OTP
       if (_isSignup) {
         await AuthService.verifySignupCode(
           email: widget.email,
@@ -174,7 +176,10 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
           '/home',
           (route) => false,
         );
-      } else {
+      }
+
+      // PASSWORD RECOVERY OTP
+      else {
         await AuthService.verifyResetCode(
           email: widget.email,
           code: code,
@@ -182,9 +187,13 @@ class _VerifyCodeScreenState extends State<VerifyCodeScreen> {
 
         if (!mounted) return;
 
-        Navigator.pushReplacementNamed(
+        // OTP verified successfully.
+        // Now open Create New Password screen.
+        Navigator.pushReplacement(
           context,
-          '/reset-password',
+          MaterialPageRoute(
+            builder: (_) => const NewPasswordScreen(),
+          ),
         );
       }
     } catch (e) {

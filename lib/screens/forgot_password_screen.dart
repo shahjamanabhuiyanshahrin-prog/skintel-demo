@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/auth_widgets.dart';
+import '../services/auth_service.dart';
+import 'verify_code_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final String? initialEmail;
@@ -45,7 +47,7 @@ class _ForgotPasswordScreenState
       return;
     }
 
-    if (!email.contains('@')) {
+    if (!isValidEmail(email)) {
       _showMessage('Please enter a valid email address');
       return;
     }
@@ -55,25 +57,30 @@ class _ForgotPasswordScreenState
     });
 
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'http://localhost:3000/reset-password',
-      );
+      // Send password recovery code
+      await AuthService.sendResetCode(email);
 
       if (!mounted) return;
 
       _showMessage(
-        'Reset password email sent. Please check your email.',
+        'Reset code sent. Please check your email.',
       );
-    } on AuthException catch (e) {
-      if (!mounted) return;
 
-      _showMessage(e.message);
+      // Open OTP verification screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VerifyCodeScreen(
+            email: email,
+            purpose: CodePurpose.recovery,
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
 
       _showMessage(
-        'Something went wrong. Please try again.',
+        AuthService.friendlyError(e),
       );
     } finally {
       if (mounted) {
@@ -147,7 +154,10 @@ class _ForgotPasswordScreenState
 
             TextField(
               controller: emailController,
+              enabled: !_isLoading,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _sendResetEmail(),
               decoration: InputDecoration(
                 hintText: 'Enter your email address',
                 hintStyle: const TextStyle(
@@ -207,24 +217,31 @@ class _ForgotPasswordScreenState
             const Spacer(),
 
             Center(
-              child: RichText(
-                text: const TextSpan(
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.black54,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: 'Remember password? ',
+              child: GestureDetector(
+                onTap: _isLoading
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                      },
+                child: RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
                     ),
-                    TextSpan(
-                      text: 'Log in',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
+                    children: [
+                      TextSpan(
+                        text: 'Remember password? ',
                       ),
-                    ),
-                  ],
+                      TextSpan(
+                        text: 'Log in',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
