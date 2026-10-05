@@ -35,10 +35,10 @@ class HomeData {
   HomeData(this.products, this.grooming, this.dermatologists, this.reviews);
 }
 
-// ---------- Service (backend ekhane connect hobe) ----------
+// ---------- Service (connect your backend here) ----------
 class HomeService {
   Future<HomeData> fetchHomeData() async {
-    // TODO: Ekhane tomar real backend call boshao (http / Dio / Firebase).
+    // TODO: Put your real backend call here (http / Dio / Supabase).
     // Example:
     // final res = await http.get(Uri.parse('$baseUrl/home'));
     // return HomeData.fromJson(jsonDecode(res.body));
@@ -61,9 +61,11 @@ class HomeService {
       ],
       [
         Review('Leslie Alexander', 5.0,
-            'Lorem ipsum dolor sit amet nonetur. Imperdiet consequat diam semper sit quam in.'),
+            'My skin feels so much smoother after two weeks. The scan picked the right products for me.'),
         Review('Saily Jane', 5.0,
-            'Lorem ipsum dolor sit amet nonetur. Imperdiet consequat diam semper sit quam in.'),
+            'Great recommendations and the dermatologist consultation was quick and very helpful.'),
+        Review('Daniel Brooks', 4.5,
+            'The male grooming section is a great idea. My beard care routine finally makes sense.'),
       ],
     );
   }
