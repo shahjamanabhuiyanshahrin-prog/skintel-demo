@@ -54,11 +54,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // Login successful → directly go to Welcome Screen
+      // Login successful → Welcome Screen (then Home Screen)
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const WelcomeScreen(),
+          builder: (_) => const WelcomeScreen(fromLogin: true),
         ),
       );
     } on AuthException catch (e) {

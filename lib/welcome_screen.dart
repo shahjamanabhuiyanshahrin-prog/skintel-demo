@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'screens/home_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  // true hole Continue chaple Home e jabe, false hole onboarding e jabe
+  final bool fromLogin;
+  const WelcomeScreen({super.key, this.fromLogin = false});
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +27,7 @@ class WelcomeScreen extends StatelessWidget {
             child: Stack(
               children: [
 
-                // =================================================
                 // TOP IMAGE
-                // =================================================
                 Positioned(
                   top: 0,
                   left: 0,
@@ -41,8 +42,6 @@ class WelcomeScreen extends StatelessWidget {
 
                       width: double.infinity,
                       height: imageHeight,
-
-                      // Cover the complete upper area
                       fit: BoxFit.cover,
 
                       errorBuilder: (context, error, stackTrace) {
@@ -62,9 +61,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                // =================================================
                 // TEXT SECTION
-                // =================================================
                 Positioned(
                   left: 40,
                   right: 30,
@@ -121,9 +118,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                // =================================================
                 // CONTINUE BUTTON
-                // =================================================
                 Positioned(
                   left: 0,
                   right: 15,
@@ -146,10 +141,21 @@ class WelcomeScreen extends StatelessWidget {
 
                       GestureDetector(
                         onTap: () {
-                          Navigator.pushReplacementNamed(
-                            context,
-                            '/onboarding',
-                          );
+                          if (fromLogin) {
+                            // Login er por: Welcome -> Home
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HomeScreen(),
+                              ),
+                            );
+                          } else {
+                            // Signup er por: Welcome -> Onboarding
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/onboarding',
+                            );
+                          }
                         },
 
                         child: Container(
@@ -172,9 +178,7 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
 
-                // =================================================
                 // BOTTOM HOME INDICATOR
-                // =================================================
                 Positioned(
                   bottom: 8,
                   left: 0,
@@ -202,10 +206,7 @@ class WelcomeScreen extends StatelessWidget {
 }
 
 
-// =============================================================
 // CURVED BOTTOM OF IMAGE
-// =============================================================
-
 class ImageWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
