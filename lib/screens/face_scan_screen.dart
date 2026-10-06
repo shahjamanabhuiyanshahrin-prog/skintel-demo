@@ -32,7 +32,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
       if (!mounted) return;
       setState(() => _cam = c);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Camera open kora jayni. Permission dao.');
+      if (mounted) setState(() => _error = 'Cannot open the camera.Permission needed.');
     }
   }
 
@@ -64,7 +64,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
       if (!mounted) return;
       setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Scan failed. Abar try koro.')));
+          const SnackBar(content: Text('Scan failed. Try again.')));
     }
   }
 
@@ -98,7 +98,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                     left: 24,
                     right: 24,
                     child: Text(
-                        'Face ta frame er moddhe rakho. Bhalo alo e, makeup chhara.',
+                        'Keep your face inside the frame. Use good light, and no makeup.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white, fontSize: 13)),
                   ),
@@ -161,8 +161,8 @@ class SkinResultCard extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
             r['demo'] == 'true'
-                ? 'DEMO MODE: eta asol result na.'
-                : 'Eta ekta estimate, medical diagnosis na.',
+                ? 'DEMO MODE: not an actual result.'
+                : 'This is just an estimate, not medical diagnosis.',
             style: TextStyle(
                 fontSize: 10,
                 color: r['demo'] == 'true' ? Colors.red : Colors.grey)),
