@@ -115,6 +115,10 @@ SKIN_QUERIES = {
     "Combination": "moisturizer for combination skin",
     "Normal": "daily moisturizer for normal skin",
 }
+EXTRA_QUERIES = {
+    k: [v, f"face wash cleanser for {k.lower()} skin", f"sunscreen for {k.lower()} skin"]
+    for k, v in SKIN_QUERIES.items()
+}
 CACHE_SECONDS = 24 * 60 * 60  # keep results for a day to save the free searches
 _product_cache = {}  # query -> (time, items)
 
@@ -166,17 +170,31 @@ def products():
     brand = request.args.get("q", "").strip()
     sort = request.args.get("sort", "asc").strip().lower()
 
-    base = category or SKIN_QUERIES.get(skin, "skin care moisturizer")
-    query = f"{brand} {base}".strip()
+    # Skin-type browsing: mix a few product kinds so the list is longer.
+    # A brand search or a chosen category uses a single search (saves quota).
+    if category:
+        queries = [f"{brand} {category}".strip()]
+    elif brand:
+        queries = [f"{brand} {SKIN_QUERIES.get(skin, 'skin care moisturizer')}".strip()]
+    else:
+        queries = EXTRA_QUERIES.get(skin) or [SKIN_QUERIES.get(skin, "skin care moisturizer")]
 
+    items, seen = [], set()
     try:
-        items = shopping_items(query)
+        for q in queries:
+            for p in shopping_items(q):
+                key = p["link"] or p["name"]
+                if key in seen:
+                    continue
+                seen.add(key)
+                items.append(p)
     except Exception as e:
         print("shopping error:", type(e).__name__, str(e)[:200])
-        return jsonify({"error": "price search unavailable"}), 503
+        if not items:
+            return jsonify({"error": "price search unavailable"}), 503
 
     items = sorted(items, key=lambda p: p["price"], reverse=(sort == "desc"))
-    return jsonify({"products": items[:30]})
+    return jsonify({"products": items[:90]})
 
 
 @app.route("/scan", methods=["POST"])
