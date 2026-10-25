@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../services/onboarding_service.dart';
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -138,19 +138,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // NEXT
   // ============================================================
 
-  void _nextPage() {
-    if (_currentPage < 4) {
-      setState(() {
-        _currentPage++;
-      });
-    } else {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/home',
-        (route) => false,
-      );
-    }
+  
+Future<void> _nextPage() async {
+  if (_currentPage < 4) {
+    setState(() {
+      _currentPage++;
+    });
+    return;
   }
+
+  // Save onboarding selections before opening Home.
+  try {
+    await OnboardingService.saveOnboardingData(
+      skinType: _selectedSkinType ?? '',
+      skinTone: _selectedSkinTone ?? '',
+      concerns: List<String>.from(_selectedConcerns),
+      experience: _selectedExperience ?? '',
+      goals: List<String>.from(_selectedGoals),
+    );
+
+    if (!mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/home',
+      (route) => false,
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Could not save onboarding data: $e'),
+      ),
+    );
+  }
+}
+
 
   // ============================================================
   // SKIP

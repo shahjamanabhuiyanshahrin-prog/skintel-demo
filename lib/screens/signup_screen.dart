@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -342,33 +343,52 @@ class _SignupScreenState extends State<SignupScreen> {
       final password =
           _passwordController.text;
 
-      final response =
-          await Supabase
-              .instance
-              .client
-              .auth
-              .signUp(
-                email: email,
-                password: password,
-              );
+      
+final name = _nameController.text.trim();
+
+final response =
+    await Supabase.instance.client.auth.signUp(
+  email: email,
+  password: password,
+  data: {
+  'name': _nameController.text.trim(),
+  'age': int.parse(_ageController.text.trim()),
+  'gender': _selectedGender,
+},
+);
+
 
       if (!mounted) return;
 
-      if (response.user != null) {
-        _showMessage(
-          'Account created. Please check your email for the 6-digit code.',
-        );
+      
+final user = response.user;
 
-        Navigator.pushNamed(
-          context,
-          '/authorize',
-          arguments: email,
-        );
-      } else {
-        _showMessage(
-          'Unable to create account. Please try again.',
-        );
-      }
+// Supabase duplicate signup-এর জন্য empty identities
+// return করলে existing account হিসেবে handle করো.
+if (user != null &&
+    user.identities != null &&
+    user.identities!.isEmpty) {
+  _showMessage(
+    'This email is already registered. Please log in.',
+  );
+  return;
+}
+
+if (user != null) {
+  _showMessage(
+    'Account created. Please check your email for the 6-digit code.',
+  );
+
+  Navigator.pushNamed(
+    context,
+    '/authorize',
+    arguments: email,
+  );
+} else {
+  _showMessage(
+    'Unable to create account. Please try again.',
+  );
+}
     } on AuthException catch (e) {
       _showMessage(e.message);
     } catch (e) {
