@@ -6,6 +6,9 @@ import 'package:http/http.dart' as http;
 // Your backend URL (e.g. https://api.yoursite.com). If empty, DEMO mode is used.
 const String kBackendUrl = '';
 
+// Address of your own backend (the Python server). Right for Chrome on this computer.
+const String kApiBase = 'http://127.0.0.1:5000';
+
 class ApiService {
   /// Sends the face photo and returns the skin type.
   /// Backend response: {"skinType": "Oily", "notes": "..."}
@@ -33,8 +36,48 @@ class ApiService {
     };
   }
 
-  /// Fetches products from the internet (Open Beauty Facts) by skin type and brand.
-  Future<List<Map<String, String>>> getProducts(
+  /// Products with prices from the backend (Google Shopping), cheapest first
+  /// by default. If the price search is not available, it falls back to the
+  /// free Open Beauty Facts search (no prices).
+  /// [sort] is 'asc' (low to high) or 'desc' (high to low).
+  Future<List<Map<String, String>>> getProducts({
+    String? skinType,
+    String? query,
+    String? category,
+    String sort = 'asc',
+  }) async {
+    try {
+      final uri = Uri.parse('$kApiBase/products').replace(queryParameters: {
+        if (skinType != null) 'skin_type': skinType,
+        if (category != null) 'category': category,
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        'sort': sort,
+      });
+      final res = await http.get(uri).timeout(const Duration(seconds: 25));
+      if (res.statusCode == 200) {
+        final list = (jsonDecode(res.body)['products'] as List?) ?? [];
+        final items = list
+            .map<Map<String, String>>((p) => {
+                  'name': (p['name'] ?? '').toString(),
+                  'brand': (p['store'] ?? '').toString(),
+                  'image': (p['image'] ?? '').toString(),
+                  'price': (p['price_text'] ?? '').toString(),
+                  'link': (p['link'] ?? '').toString(),
+                  'type': skinType ?? 'All',
+                })
+            .where((p) => p['name']!.isNotEmpty)
+            .toList();
+        if (items.isNotEmpty) return items;
+      }
+    } catch (_) {
+      // fall through to the free search below
+    }
+    return _getProductsFree(
+        skinType: skinType, query: query, category: category);
+  }
+
+  /// Free fallback: Open Beauty Facts (any brand, no prices).
+  Future<List<Map<String, String>>> _getProductsFree(
       {String? skinType, String? query, String? category}) async {
     String base;
     switch (category != null ? '_cat' : skinType) {
@@ -76,6 +119,9 @@ class ApiService {
                 'name': p['product_name'].toString(),
                 'brand': (p['brands'] ?? '').toString().split(',').first,
                 'image': (p['image_front_small_url'] ?? '').toString(),
+                'link': (p['code'] ?? '').toString().isEmpty
+                    ? ''
+                    : 'https://world.openbeautyfacts.org/product/${p['code']}',
                 'type': skinType ?? 'All',
               })
           .toList();
