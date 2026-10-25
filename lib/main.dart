@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'screens/profile_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_options_screen.dart';
@@ -45,6 +45,7 @@ class MyApp extends StatelessWidget {
         '/login-signup': (context) => const LoginSignupScreen(),
 
         '/login': (context) => const LoginScreen(),
+        '/profile': (context) => const ProfileScreen(),
 
         // Signup options
         '/signup-options': (context) => const SignupOptionsScreen(),

@@ -17,6 +17,7 @@ dependencies:
   http: ^1.6.0
   camera: ^0.12.1
   url_launcher: ^6.3.3
+  image_picker: ^1.2.0
 
 dev_dependencies:
   flutter_test:
@@ -29,3 +30,5 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/skin_types/
+    - assets/images/concerns/
