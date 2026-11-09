@@ -6,10 +6,12 @@ import urllib.request
 
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify
+from flask import Flask, Response, request, jsonify
 from flask_cors import CORS
 from google import genai
 from google.genai import types
+
+import catalog
 
 app = Flask(__name__)
 CORS(app)
@@ -195,6 +197,342 @@ def products():
 
     items = sorted(items, key=lambda p: p["price"], reverse=(sort == "desc"))
     return jsonify({"products": items[:90]})
+
+
+# ---------------------------------------------------------------------------
+# Dermatologists near you (OpenStreetMap / Overpass, free, no key).
+# OpenStreetMap data is community-made, so some places have no phone number.
+# ---------------------------------------------------------------------------
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+_derm_cache = {}  # rounded location -> (time, doctors)
+
+
+def distance_km(lat1, lon1, lat2, lon2):
+    import math
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = p2 - p1
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def fetch_overpass(lat, lon, radius):
+    q = (
+        "[out:json][timeout:20];("
+        f'nwr(around:{radius},{lat},{lon})["healthcare:speciality"~"dermat",i];'
+        f'nwr(around:{radius},{lat},{lon})["name"~"skin|derma|cosmetic",i]'
+        '["amenity"~"doctors|clinic|hospital"];'
+        ");out center tags 60;"
+    )
+    body = urllib.parse.urlencode({"data": q}).encode()
+    last = None
+    for url in OVERPASS_URLS:
+        try:
+            req = urllib.request.Request(url, data=body)
+            with urllib.request.urlopen(req, timeout=25) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:
+            last = e
+    raise last
+
+
+@app.route("/dermatologists", methods=["GET"])
+def dermatologists():
+    try:
+        lat = float(request.args.get("lat", ""))
+        lon = float(request.args.get("lon", ""))
+    except ValueError:
+        return jsonify({"error": "lat and lon are needed"}), 400
+
+    key = (round(lat, 2), round(lon, 2))
+    hit = _derm_cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return jsonify({"doctors": hit[1]})
+
+    try:
+        data = fetch_overpass(lat, lon, 15000)
+    except Exception as e:
+        print("overpass error:", type(e).__name__, str(e)[:200])
+        return jsonify({"error": "doctor search unavailable"}), 503
+
+    doctors, seen = [], set()
+    for el in data.get("elements", []):
+        t = el.get("tags", {})
+        name = (t.get("name") or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        c = el.get("center") or {}
+        elat = el.get("lat", c.get("lat"))
+        elon = el.get("lon", c.get("lon"))
+        if elat is None or elon is None:
+            continue
+        parts = [t.get("addr:housenumber"), t.get("addr:street"),
+                 t.get("addr:suburb") or t.get("addr:neighbourhood"),
+                 t.get("addr:city")]
+        address = ", ".join(p for p in parts if p) or t.get("addr:full", "")
+        doctors.append({
+            "name": name,
+            "place": t.get("operator") or t.get("amenity", "").capitalize(),
+            "address": address,
+            "phone": (t.get("phone") or t.get("contact:phone") or "").strip(),
+            "website": (t.get("website") or t.get("contact:website") or "").strip(),
+            "distance_km": round(distance_km(lat, lon, elat, elon), 1),
+            "lat": elat,
+            "lon": elon,
+        })
+
+    doctors.sort(key=lambda d: d["distance_km"])
+    doctors = doctors[:30]
+    _derm_cache[key] = (time.time(), doctors)
+    return jsonify({"doctors": doctors})
+
+
+# ---------------------------------------------------------------------------
+# Product picture and price: read from the shop page itself (cached a day).
+# Best effort: if a shop hides them, the app shows an icon / "see shop".
+# ---------------------------------------------------------------------------
+import html as _html
+import re
+from concurrent.futures import ThreadPoolExecutor, wait
+
+_info_cache = {}  # page url -> (time, {"image":..., "price":...})
+_pool = ThreadPoolExecutor(max_workers=12)
+_META = r'<meta[^>]+(?:property|name)=["\']%s["\'][^>]*content=["\']([^"\']+)'
+_META_REV = r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*(?:property|name)=["\']%s["\']'
+
+
+def _meta(page, key):
+    for pattern in (_META % key, _META_REV % key):
+        m = re.search(pattern, page, re.I)
+        if m:
+            return _html.unescape(m.group(1)).strip()
+    return ""
+
+
+def _to_number(text):
+    try:
+        return float(str(text).replace(",", "").strip())
+    except ValueError:
+        return None
+
+
+def _find_price(page):
+    # 1) meta tags (most shops)
+    cur = _meta(page, "product:price:currency") or _meta(page, "og:price:currency")
+    for key in ("product:price:amount", "og:price:amount"):
+        amount = _to_number(_meta(page, key))
+        if amount and (not cur or cur.upper() in ("BDT", "TK")):
+            return amount
+    # 2) JSON-LD product data
+    for block in re.findall(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>',
+                            page, re.I | re.S):
+        if "price" not in block.lower():
+            continue
+        m = re.search(r'"(?:price|lowPrice)"\s*:\s*"?([0-9][0-9,\.]*)', block)
+        if not m:
+            continue
+        c = re.search(r'"priceCurrency"\s*:\s*"([A-Za-z]+)"', block)
+        if c and c.group(1).upper() not in ("BDT", "TK"):
+            continue
+        amount = _to_number(m.group(1))
+        if amount:
+            return amount
+    return None
+
+
+def page_info(url):
+    hit = _info_cache.get(url)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    info = {"image": "", "price": None}
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (compatible; SkintelStudentProject)",
+            "Accept": "text/html",
+        })
+        with urllib.request.urlopen(req, timeout=6) as r:
+            page = r.read(600000).decode("utf-8", "ignore")
+        info["image"] = _meta(page, "og:image")
+        info["price"] = _find_price(page)
+    except Exception as e:
+        print("page error:", type(e).__name__, url[:60])
+    _info_cache[url] = (time.time(), info)
+    return info
+
+
+def fill_product(p):
+    """Adds image, per-shop price and the lowest price to a product."""
+    image, prices = "", []
+    for l in p["links"]:
+        info = page_info(l["url"])
+        l["price"] = info["price"]
+        if info["price"]:
+            prices.append(info["price"])
+        if not image and info["image"]:
+            image = info["image"]
+    p["image"] = image
+    p["price_min"] = min(prices) if prices else None
+
+
+@app.route("/recommendations", methods=["GET"])
+def recommendations():
+    skin = request.args.get("skin_type", "").strip().capitalize()
+    origin = request.args.get("origin", "local").strip().lower()
+    category = request.args.get("category", "").strip()
+    if origin not in ("local", "imported"):
+        origin = "local"
+    if skin not in SKIN_TYPES:
+        skin = ""
+    items = catalog.recommend(skin, origin, category)
+    # Look up pictures and prices in parallel. Slow ones finish in the
+    # background and are ready next time (results are cached).
+    futures = [_pool.submit(fill_product, p) for p in items]
+    wait(futures, timeout=20)
+    for p in items:
+        p.setdefault("image", "")
+        p.setdefault("price_min", None)
+        for l in p["links"]:
+            l.setdefault("price", None)
+    return jsonify({"products": items})
+
+
+# ---------------------------------------------------------------------------
+# Product picture for the shop screen.
+# The app asks: /product_image?name=...&brand=...
+# We search Google Shopping (SerpAPI) and only accept a result whose title
+# has the BRAND and most words of the PRODUCT NAME. If nothing matches well,
+# we send no picture (the app shows a colour box instead of a wrong picture).
+# Good answers are saved in image_cache_v2.json (one search per product).
+# ---------------------------------------------------------------------------
+import threading
+
+IMAGE_CACHE_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "image_cache_v2.json"
+)
+_image_lock = threading.Lock()
+_image_urls = {}  # search text -> picture link ("" = nothing good found)
+_image_bytes = {}  # picture link -> (content type, bytes)
+
+try:
+    with open(IMAGE_CACHE_FILE, "r", encoding="utf-8") as _f:
+        _image_urls = json.load(_f)
+except Exception:
+    _image_urls = {}
+
+_STOP_WORDS = {"the", "and", "for", "with", "of", "demo", "listing", "by"}
+
+
+def _save_image_cache():
+    try:
+        with open(IMAGE_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_image_urls, f)
+    except Exception as e:
+        print("image cache save error:", type(e).__name__)
+
+
+def _words(text):
+    return [w for w in re.findall(r"[a-z0-9]+", text.lower())
+            if w not in _STOP_WORDS and len(w) > 1]
+
+
+def _squash(text):
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def pick_best_image(results, name, brand):
+    """Returns the picture link of the best matching result, or ''."""
+    brand_key = _squash(brand)
+    brand_words = set(_words(brand))
+    name_words = [w for w in _words(name) if w not in brand_words]
+
+    best_url, best_score = "", 0.0
+    for r in results:
+        title = str(r.get("title", ""))
+        thumb = str(r.get("thumbnail", "")).strip()
+        if not thumb.startswith("http"):
+            continue
+        # the brand must be in the title
+        if brand_key and brand_key not in _squash(title):
+            continue
+        title_words = set(_words(title))
+        if name_words:
+            score = sum(1 for w in name_words if w in title_words) / len(name_words)
+        else:
+            score = 1.0
+        if score > best_score:
+            best_url, best_score = thumb, score
+
+    need = 0.6 if name_words else 0.0
+    if best_url and best_score >= need:
+        print(f"image match ok: {brand} / {name} (score {best_score:.2f})")
+        return best_url
+    print(f"image match NOT found: {brand} / {name}")
+    return ""
+
+
+def find_image_url(name, brand):
+    name = name.replace("Demo listing.", "").strip()
+    if brand and brand.lower() not in name.lower():
+        query = f"{brand} {name}"
+    else:
+        query = name
+    key = query.lower().strip()
+    if not key:
+        return ""
+    if key in _image_urls:
+        return _image_urls[key]
+    if not os.environ.get("SERPAPI_API_KEY"):
+        return ""
+    try:
+        data = fetch_shopping(query)
+    except Exception as e:
+        print("image search error:", type(e).__name__, str(e)[:120])
+        return ""  # do not save, try again next time
+    url = pick_best_image(data.get("shopping_results", []), name, brand)
+    with _image_lock:
+        _image_urls[key] = url
+        _save_image_cache()
+    return url
+
+
+def download_image(url):
+    hit = _image_bytes.get(url)
+    if hit:
+        return hit
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; SkintelStudentProject)",
+    })
+    with urllib.request.urlopen(req, timeout=10) as r:
+        ctype = r.headers.get("Content-Type", "image/jpeg")
+        data = r.read(3_000_000)
+    if len(_image_bytes) > 300:
+        _image_bytes.clear()
+    _image_bytes[url] = (ctype, data)
+    return ctype, data
+
+
+@app.route("/product_image", methods=["GET"])
+def product_image():
+    name = request.args.get("name", "").strip()
+    brand = request.args.get("brand", "").strip()
+    url = find_image_url(name, brand)
+    if not url:
+        return "", 404
+    try:
+        ctype, data = download_image(url)
+    except Exception as e:
+        print("image download error:", type(e).__name__)
+        return "", 404
+    return Response(
+        data,
+        mimetype=ctype,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.route("/scan", methods=["POST"])

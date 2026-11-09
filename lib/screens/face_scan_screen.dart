@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/onboarding_service.dart';
 import '../services/scan_service.dart';
 import 'skin_result_screen.dart';
@@ -75,13 +76,42 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     }
   }
 
+  // Take a photo with the camera.
   Future<void> _scan() async {
     if (_busy || _cam == null) return;
-    setState(() => _busy = true);
     try {
       final photo = await _cam!.takePicture();
+      await _process(photo);
+    } catch (e) {
+      _failed();
+    }
+  }
 
-      // Send the photo to the backend
+  // Choose a photo from the gallery (works when the camera does not).
+  Future<void> _pickPhoto() async {
+    if (_busy) return;
+    try {
+      final photo = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, imageQuality: 90);
+      if (photo == null) return; // user cancelled
+      await _process(photo);
+    } catch (e) {
+      _failed();
+    }
+  }
+
+  void _failed() {
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scan failed. Please try again.')));
+  }
+
+  // Sends the photo to the backend and opens the result screen.
+  Future<void> _process(XFile photo) async {
+    if (!mounted) return;
+    setState(() => _busy = true);
+    try {
       final res = await ScanService.scanFace(photo);
 
       // If the light is not good, show a warning and no result
@@ -113,10 +143,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
         ),
       );
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Scan failed. Please try again.')));
+      _failed();
     }
   }
 
@@ -204,6 +231,18 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                     borderRadius: BorderRadius.circular(24))),
             child: Text(button),
           ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: _busy ? null : _pickPhoto,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('Choose a photo instead'),
+          ),
+          if (_busy) ...[
+            const SizedBox(height: 12),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 8),
+            const Text('Analyzing your skin...'),
+          ],
         ]),
       ),
     );
@@ -247,6 +286,16 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
                   border: Border.all(color: Colors.white54, width: 6)),
             ),
           ),
+        ),
+      ),
+      Positioned(
+        bottom: 56,
+        right: 32,
+        child: IconButton(
+          onPressed: _busy ? null : _pickPhoto,
+          icon: const Icon(Icons.photo_library_outlined,
+              color: Colors.white, size: 30),
+          tooltip: 'Choose a photo',
         ),
       ),
       if (_busy)
