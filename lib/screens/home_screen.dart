@@ -8,6 +8,7 @@ import 'profile_screen.dart';
 import 'chatbot_screen.dart';
 import 'notifications_screen.dart';
 import 'skin_profile_screen.dart';
+import 'home_remedy_screen.dart';
 
 const _bg = Color(0xFFF5EFEC);
 const _dark = Color(0xFF111111);
@@ -192,8 +193,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       _title('Know your skin'),
-      _knowSkin(),
-      _title('Our results'),
+_knowSkin(),
+
+_title('Home Remedy'),
+_homeRemedyCard(),
+
+_title('Our results'),
       SizedBox(
         height: 150,
         child: ListView.separated(
@@ -333,6 +338,52 @@ class _HomeScreenState extends State<HomeScreen> {
           const Icon(Icons.person_search, size: 70, color: Color(0xFF1B1B3A)),
         ]),
       );
+      Widget _homeRemedyCard() {
+  return GestureDetector(
+    onTap: () => _push(const HomeRemedyScreen()),
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      height: 125,
+      decoration: _card,
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Simple skincare tips at home',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  'Discover safe home care for your skin.',
+                  style: TextStyle(fontSize: 10),
+                ),
+                Text(
+                  'Explore remedies →',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.spa_outlined,
+            size: 65,
+            color: Color(0xFF1B1B3A),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _reviewCard(Review r) => Container(
         width: 210,
@@ -404,4 +455,4 @@ class _ChatBotButton extends StatelessWidget {
       ]),
     );
   }
-}
+}             

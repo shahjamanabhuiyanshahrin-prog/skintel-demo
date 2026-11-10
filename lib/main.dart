@@ -17,13 +17,15 @@ import 'member3_main.dart' as member3;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+ 
   // Supabase initialize করবে শুধু একবার
   await Supabase.initialize(
     url: 'https://roiycijynzjavcpmpgzk.supabase.co',
-    anonKey: 'sb_publishable_ul4HIi-HVkEOk1CGs7Wtwg_92CvAcw8',
+    publishableKey: 'sb_publishable_ul4HIi-HVkEOk1CGs7Wtwg_92CvAcw8',
   );
 
   runApp(const MyApp());
+
 }
 
 class MyApp extends StatelessWidget {
