@@ -4,18 +4,15 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // All backend calls live here.
-// If empty, DEMO mode is used.
 const String kBackendUrl = '';
 
-// Address of your own backend (the Python server). Right for Chrome on this computer.
-const String kApiBase = 'http://127.0.0.1:5000';
+// Online Render backend URL.
+const String kApiBase = 'https://skintel-demo.onrender.com';
 
 class ApiService {
   /// Sends the face photo and returns the skin type.
-  /// Backend response: {"skinType": "Oily", "notes": "..."}
   Future<Map<String, String>> analyzeSkin(Uint8List imageBytes) async {
     if (kBackendUrl.isEmpty) {
-      // DEMO: fake result when no backend is set.
       await Future.delayed(const Duration(seconds: 2));
 
       return {
@@ -53,10 +50,7 @@ class ApiService {
     };
   }
 
-  /// Products with prices from the backend (Google Shopping), cheapest first
-  /// by default. If the price search is not available, it falls back to the
-  /// free Open Beauty Facts search (no prices).
-  /// [sort] is 'asc' (low to high) or 'desc' (high to low).
+  /// Products with prices from the backend.
   Future<List<Map<String, String>>> getProducts({
     String? skinType,
     String? query,
@@ -70,9 +64,12 @@ class ApiService {
         if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
         'sort': sort,
       });
+
       final res = await http.get(uri).timeout(const Duration(seconds: 25));
+
       if (res.statusCode == 200) {
         final list = (jsonDecode(res.body)['products'] as List?) ?? [];
+
         final items = list
             .map<Map<String, String>>((p) => {
                   'name': (p['name'] ?? '').toString(),
@@ -84,18 +81,26 @@ class ApiService {
                 })
             .where((p) => p['name']!.isNotEmpty)
             .toList();
+
         if (items.isNotEmpty) return items;
       }
     } catch (_) {
-      // fall through to the free search below
+      // Fall back to free search.
     }
+
     return _getProductsFree(
-        skinType: skinType, query: query, category: category);
+      skinType: skinType,
+      query: query,
+      category: category,
+    );
   }
 
-  /// Free fallback: Open Beauty Facts (any brand, no prices).
-  Future<List<Map<String, String>>> _getProductsFree(
-      {String? skinType, String? query, String? category}) async {
+  /// Free fallback: Open Beauty Facts.
+  Future<List<Map<String, String>>> _getProductsFree({
+    String? skinType,
+    String? query,
+    String? category,
+  }) async {
     String base;
 
     switch (category != null ? '_cat' : skinType) {
