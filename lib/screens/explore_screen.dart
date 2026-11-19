@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/onboarding_service.dart';
 import 'products_screen.dart';
 
@@ -13,7 +14,84 @@ class _Tip {
       [this.product]);
 }
 
+class _Video {
+  final String title;
+  final String subtitle;
+  final String query;
+  final IconData icon;
+  final Color color;
+  const _Video(this.title, this.subtitle, this.query, this.icon, this.color);
+}
+
+const List<_Video> _videos = [
+  _Video(
+      'How to prep skin before makeup',
+      'For every skin type',
+      'how to prep skin before makeup for all skin types',
+      Icons.brush,
+      Color(0xFF8E6C88)),
+];
+
+Color _catColor(String c) {
+  switch (c) {
+    case 'Sunscreen':
+      return const Color(0xFFE0A030);
+    case 'Lifestyle':
+      return const Color(0xFF5E9E6E);
+    case 'Routine':
+      return const Color(0xFF8E6C88);
+    case 'Safety':
+      return const Color(0xFFC0594F);
+    case 'Moisturizer':
+      return const Color(0xFF6C7FB8);
+    case 'Cleanser':
+      return const Color(0xFF3E8E9E);
+    case 'Ingredients':
+      return const Color(0xFF9A6B3F);
+    case 'Fact':
+      return const Color(0xFF4A6FA5);
+    case 'Myth':
+      return const Color(0xFFB5536B);
+    case 'Skin health':
+      return const Color(0xFFB07A5A);
+    case 'Men':
+      return const Color(0xFF3B4A5A);
+    default:
+      return const Color(0xFF777777);
+  }
+}
+
+IconData _catIcon(String c) {
+  switch (c) {
+    case 'Sunscreen':
+      return Icons.wb_sunny_outlined;
+    case 'Lifestyle':
+      return Icons.self_improvement;
+    case 'Routine':
+      return Icons.checklist;
+    case 'Safety':
+      return Icons.health_and_safety_outlined;
+    case 'Moisturizer':
+      return Icons.opacity;
+    case 'Cleanser':
+      return Icons.bubble_chart;
+    case 'Ingredients':
+      return Icons.science_outlined;
+    case 'Fact':
+      return Icons.auto_awesome;
+    case 'Myth':
+      return Icons.help_outline;
+    case 'Skin health':
+      return Icons.favorite_border;
+    case 'Men':
+      return Icons.face_6;
+    default:
+      return Icons.lightbulb_outline;
+  }
+}
+
 const List<_Tip> _tips = [
+  // ---------------- General (All) ----------------
   _Tip(
       'Always wear sunscreen',
       'The most important step for every skin type.',
@@ -40,55 +118,6 @@ const List<_Tip> _tips = [
       'Apply a small amount of a new product behind your ear or on your inner arm for 24 hours. If you see redness, itching or burning, do not use it on your face.',
       'Safety',
       'All'),
-  _Tip(
-      'Moisturize while skin is damp',
-      'Locks in moisture for longer.',
-      'Apply a thick, fragrance-free moisturizer within a few minutes after washing your face. Look for ceramides, glycerin or hyaluronic acid. Avoid hot water, which dries skin out.',
-      'Moisturizer',
-      'Dry',
-      'ceramide moisturizer for dry skin'),
-  _Tip(
-      'Use a gentle, creamy cleanser',
-      'Harsh foaming washes strip dry skin.',
-      'Choose a creamy or milky cleanser and wash once or twice a day with lukewarm water. Pat your face dry instead of rubbing.',
-      'Cleanser',
-      'Dry',
-      'creamy gentle face cleanser for dry skin'),
-  _Tip(
-      'Do not skip moisturizer',
-      'Oily skin still needs hydration.',
-      'Skipping moisturizer can make your skin produce even more oil. Use a light, gel-based or oil-free moisturizer labeled non-comedogenic.',
-      'Moisturizer',
-      'Oily',
-      'oil free gel moisturizer'),
-  _Tip(
-      'Try niacinamide',
-      'Helps control oil and the look of pores.',
-      'A serum with 2 to 5 percent niacinamide can help balance oil and calm redness. Start slowly, a few times a week, and watch how your skin reacts.',
-      'Ingredients',
-      'Oily',
-      'niacinamide serum'),
-  _Tip(
-      'Do not over-wash',
-      'Washing too often irritates oily skin.',
-      'Wash twice a day at most. Over-washing damages the skin barrier and can lead to more oil and more breakouts.',
-      'Cleanser',
-      'Oily',
-      'gentle gel cleanser for oily skin'),
-  _Tip(
-      'Treat each zone differently',
-      'Combination skin has dry and oily areas.',
-      'Use a lightweight lotion on the T-zone (forehead, nose, chin) and a slightly richer cream on dry cheeks. A gentle, balanced cleanser works for the whole face.',
-      'Routine',
-      'Combination',
-      'lightweight lotion for combination skin'),
-  _Tip(
-      'Keep your routine simple',
-      'Fewer products, steadier skin.',
-      'Normal skin does best with a basic routine: gentle cleanser, moisturizer and sunscreen. Add one new product at a time so you know what works.',
-      'Routine',
-      'Normal',
-      'gentle face cleanser and moisturizer'),
   _Tip(
       'Skin is your largest organ',
       'It covers your whole body and protects it.',
@@ -167,6 +196,22 @@ const List<_Tip> _tips = [
       'Your skin repairs itself while you sleep. Too little sleep can lead to dull skin and dark circles. Aim for 7 to 9 hours.',
       'Lifestyle',
       'All'),
+
+  // ---------------- Dry skin ----------------
+  _Tip(
+      'Moisturize while skin is damp',
+      'Locks in moisture for longer.',
+      'Apply a thick, fragrance-free moisturizer within a few minutes after washing your face. Look for ceramides, glycerin or hyaluronic acid. Avoid hot water, which dries skin out.',
+      'Moisturizer',
+      'Dry',
+      'ceramide moisturizer for dry skin'),
+  _Tip(
+      'Use a gentle, creamy cleanser',
+      'Harsh foaming washes strip dry skin.',
+      'Choose a creamy or milky cleanser and wash once or twice a day with lukewarm water. Pat your face dry instead of rubbing.',
+      'Cleanser',
+      'Dry',
+      'creamy gentle face cleanser for dry skin'),
   _Tip(
       'Use heavier cream at night, lighter by day',
       'Dry skin loses more water at night.',
@@ -175,12 +220,107 @@ const List<_Tip> _tips = [
       'Dry',
       'night cream for dry skin'),
   _Tip(
+      'Add a hydrating serum',
+      'Water first, cream second.',
+      'A hyaluronic acid or glycerin serum pulls water into the skin. Apply it on damp skin, then seal it in with a moisturizer. Without a cream on top, the serum can evaporate and leave skin even drier.',
+      'Ingredients',
+      'Dry',
+      'hyaluronic acid serum for dry skin'),
+  _Tip(
+      'Keep showers short and lukewarm',
+      'Hot water removes natural oils.',
+      'Long, hot showers strip the oils your skin needs. Keep showers under 10 minutes, use lukewarm water, and apply body lotion within 3 minutes of drying off.',
+      'Lifestyle',
+      'Dry',
+      'body lotion for dry skin'),
+  _Tip(
+      'Choose fragrance-free products',
+      'Perfume can irritate dry, sensitive skin.',
+      'Fragrance and strong alcohol are common causes of stinging and redness on dry skin. Pick products marked fragrance-free and alcohol-free, especially toners and cleansers.',
+      'Safety',
+      'Dry',
+      'fragrance free moisturizer'),
+  _Tip(
+      'Do not scrub flaky skin',
+      'Scrubbing makes dryness worse.',
+      'Flaky patches need moisture, not rough scrubs. Use a gentle lactic acid exfoliant once a week at most, and always follow with a rich moisturizer.',
+      'Routine',
+      'Dry',
+      'lactic acid gentle exfoliant'),
+  _Tip(
+      'Protect your lips and hands',
+      'They dry out first.',
+      'Lips and hands have very few oil glands. Use a lip balm with petrolatum or shea butter, and apply hand cream after every wash, especially in winter or in air-conditioned rooms.',
+      'Skin health',
+      'Dry',
+      'lip balm and hand cream'),
+
+  // ---------------- Oily skin ----------------
+  _Tip(
+      'Do not skip moisturizer',
+      'Oily skin still needs hydration.',
+      'Skipping moisturizer can make your skin produce even more oil. Use a light, gel-based or oil-free moisturizer labeled non-comedogenic.',
+      'Moisturizer',
+      'Oily',
+      'oil free gel moisturizer'),
+  _Tip(
+      'Try niacinamide',
+      'Helps control oil and the look of pores.',
+      'A serum with 2 to 5 percent niacinamide can help balance oil and calm redness. Start slowly, a few times a week, and watch how your skin reacts.',
+      'Ingredients',
+      'Oily',
+      'niacinamide serum'),
+  _Tip(
+      'Do not over-wash',
+      'Washing too often irritates oily skin.',
+      'Wash twice a day at most. Over-washing damages the skin barrier and can lead to more oil and more breakouts.',
+      'Cleanser',
+      'Oily',
+      'gentle gel cleanser for oily skin'),
+  _Tip(
       'Use oil-free sunscreen',
       'Look for gel or matte formulas.',
       'Heavy sunscreens can feel greasy on oily skin. Choose gel, fluid or matte sunscreens labeled non-comedogenic.',
       'Sunscreen',
       'Oily',
       'oil free matte sunscreen'),
+  _Tip(
+      'Use salicylic acid for clogged pores',
+      'It cleans oil from inside the pore.',
+      'Salicylic acid (BHA) is oil-soluble, so it can get inside pores and clear blackheads. Start with a 1 to 2 percent cleanser or toner two or three times a week.',
+      'Ingredients',
+      'Oily',
+      'salicylic acid BHA toner'),
+  _Tip(
+      'Try a clay mask once a week',
+      'Absorbs extra oil and cleans pores.',
+      'A kaolin or bentonite clay mask can soak up surface oil. Leave it on for 10 minutes, do not let it fully dry and crack, then rinse and moisturize. Once a week is enough.',
+      'Routine',
+      'Oily',
+      'clay face mask for oily skin'),
+  _Tip(
+      'Blot, do not rub',
+      'Control shine through the day.',
+      'Press an oil-blotting sheet on the shiny areas to lift oil without disturbing your sunscreen or makeup. Avoid washing your face again and again during the day.',
+      'Lifestyle',
+      'Oily',
+      'oil blotting sheets'),
+  _Tip(
+      'Pick non-comedogenic makeup',
+      'Heavy makeup can block pores.',
+      'Look for the words non-comedogenic or oil-free on foundation and concealer. Always remove makeup at night with a cleansing balm followed by a gentle gel cleanser.',
+      'Safety',
+      'Oily',
+      'non comedogenic foundation'),
+
+  // ---------------- Combination skin ----------------
+  _Tip(
+      'Treat each zone differently',
+      'Combination skin has dry and oily areas.',
+      'Use a lightweight lotion on the T-zone (forehead, nose, chin) and a slightly richer cream on dry cheeks. A gentle, balanced cleanser works for the whole face.',
+      'Routine',
+      'Combination',
+      'lightweight lotion for combination skin'),
   _Tip(
       'Exfoliate gently, not daily',
       'Once or twice a week is enough.',
@@ -189,12 +329,91 @@ const List<_Tip> _tips = [
       'Combination',
       'lactic acid exfoliant'),
   _Tip(
+      'Try multi-masking',
+      'Different masks for different areas.',
+      'Put a clay mask on your T-zone and a hydrating mask on your cheeks at the same time. This treats oil and dryness together in one session. Do it once a week.',
+      'Routine',
+      'Combination',
+      'clay mask and hydrating mask'),
+  _Tip(
+      'Choose a balanced gel-cream moisturizer',
+      'Light enough for the T-zone, rich enough for cheeks.',
+      'Gel-cream moisturizers hydrate without feeling heavy. If your cheeks still feel tight, add a few extra drops of a hydrating serum only on the dry areas.',
+      'Moisturizer',
+      'Combination',
+      'gel cream moisturizer'),
+  _Tip(
+      'Use a balancing toner',
+      'Helps settle oil and dryness together.',
+      'An alcohol-free toner with niacinamide or green tea can calm the skin and reduce shine in the T-zone without drying your cheeks. Apply it with clean hands, not a rough cotton pad.',
+      'Ingredients',
+      'Combination',
+      'alcohol free balancing toner'),
+  _Tip(
+      'Spot treat only the oily zones',
+      'Do not put strong actives everywhere.',
+      'Use salicylic acid or benzoyl peroxide only on the T-zone or on pimples. Putting them on dry cheeks can cause peeling and redness.',
+      'Ingredients',
+      'Combination',
+      'salicylic acid spot treatment'),
+  _Tip(
+      'Layer from light to heavy',
+      'Order matters in your routine.',
+      'Apply thin products first (toner, serum), then lotion or cream, then sunscreen. Thin-to-thick layering lets each product absorb properly and avoids a greasy T-zone.',
+      'Routine',
+      'Combination'),
+
+  // ---------------- Normal skin ----------------
+  _Tip(
+      'Keep your routine simple',
+      'Fewer products, steadier skin.',
+      'Normal skin does best with a basic routine: gentle cleanser, moisturizer and sunscreen. Add one new product at a time so you know what works.',
+      'Routine',
+      'Normal',
+      'gentle face cleanser and moisturizer'),
+  _Tip(
       'Add one active at a time',
       'Normal skin can handle more, but go slowly.',
       'When you want to try vitamin C, retinol or acids, add only one at a time and wait 2 to 3 weeks. Always use sunscreen in the morning.',
       'Ingredients',
       'Normal',
       'vitamin C serum'),
+  _Tip(
+      'Use vitamin C in the morning',
+      'An antioxidant shield under sunscreen.',
+      'A vitamin C serum helps protect against pollution and sun damage and brightens dull skin. Apply it after cleansing and before moisturizer and sunscreen.',
+      'Ingredients',
+      'Normal',
+      'vitamin C serum 10%'),
+  _Tip(
+      'Start retinol slowly at night',
+      'Great for long-term skin health.',
+      'Begin with a low strength retinol two nights a week, then slowly increase. Use a pea-sized amount for the whole face. Do not use it together with strong acids, and always wear sunscreen the next day.',
+      'Ingredients',
+      'Normal',
+      'retinol serum beginner'),
+  _Tip(
+      'Exfoliate once a week',
+      'Keeps skin smooth and glowing.',
+      'Normal skin can handle a gentle AHA or BHA exfoliant once a week. This removes dead cells and helps products absorb better. Skip it if your skin feels sore.',
+      'Routine',
+      'Normal',
+      'gentle AHA exfoliant'),
+  _Tip(
+      'Use a hydrating mask weekly',
+      'A small boost for glowing skin.',
+      'A sheet mask or cream mask once a week adds extra water and keeps normal skin plump and soft. Choose one with hyaluronic acid or aloe.',
+      'Routine',
+      'Normal',
+      'hydrating sheet mask'),
+  _Tip(
+      'Adjust to the seasons',
+      'Normal skin can turn dry or oily with weather.',
+      'In humid summers switch to a lighter gel moisturizer. In dry winters use a slightly richer cream. Your skin type is not fixed, so change your products when your skin changes.',
+      'Lifestyle',
+      'Normal'),
+
+  // ---------------- Men's grooming ----------------
   _Tip(
       'Shave after a warm wash',
       'Warm water softens the hair.',
@@ -296,7 +515,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
     try {
       final data = await OnboardingService.getOnboardingData();
       final t = data?['skin_type']?.toString();
-      if (t != null && _filters.contains(t) && t != 'All' && t != 'Men' && mounted) {
+      if (t != null &&
+          _filters.contains(t) &&
+          t != 'All' &&
+          t != 'Men' &&
+          mounted) {
         setState(() {
           _mine = t;
           _filter = t;
@@ -305,78 +528,315 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } catch (_) {}
   }
 
+  // All  -> every tip
+  // Men  -> men's grooming tips
+  // Dry / Oily / Combination / Normal -> only tips made for that skin type
   List<_Tip> get _visible {
     if (_filter == 'All') return _tips;
-    if (_filter == 'Men') return _tips.where((t) => t.category == 'Men').toList();
+    if (_filter == 'Men') {
+      return _tips.where((t) => t.category == 'Men').toList();
+    }
     return _tips
-        .where((t) =>
-            t.category != 'Men' && (t.skin == 'All' || t.skin == _filter))
+        .where((t) => t.category != 'Men' && t.skin == _filter)
         .toList();
   }
 
+  Future<void> _openVideo(_Video v) async {
+    final uri = Uri.https(
+        'www.youtube.com', '/results', {'search_query': v.query});
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open YouTube.')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open YouTube.')));
+      }
+    }
+  }
+
   void _open(_Tip t) {
+    final color = _catColor(t.category);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(t.category.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black54)),
-            const SizedBox(height: 6),
-            Text(t.title,
-                style:
-                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            Text(t.body, style: const TextStyle(fontSize: 14, height: 1.5)),
-            if (t.product != null) ...[
-              const SizedBox(height: 20),
-              const Text('Products to use',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text('Look for: ${t.product}',
-                  style: const TextStyle(fontSize: 13, color: Colors.black54)),
-              const SizedBox(height: 12),
-              SizedBox(
+      builder: (_) => SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
                 width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  label: const Text('Find products with prices'),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ProductsScreen(
-                          category: t.product,
-                          title: t.title,
-                        ),
-                      ),
-                    );
-                  },
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      colors: [color, color.withOpacity(0.65)]),
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                child: Row(children: [
+                  Icon(_catIcon(t.category), color: Colors.white, size: 36),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(t.category.toUpperCase(),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            letterSpacing: 1.2,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ]),
               ),
+              const SizedBox(height: 16),
+              Text(t.title,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 12),
+              Text(t.body, style: const TextStyle(fontSize: 14, height: 1.5)),
+              if (t.product != null) ...[
+                const SizedBox(height: 20),
+                const Text('Products to use',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text('Look for: ${t.product}',
+                    style:
+                        const TextStyle(fontSize: 13, color: Colors.black54)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24))),
+                    icon: const Icon(Icons.shopping_bag_outlined),
+                    label: const Text('Find products with prices'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProductsScreen(
+                            category: t.product,
+                            title: t.title,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _hero() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 180,
+        child: Stack(fit: StackFit.expand, children: [
+          Image.asset(
+            'assets/images/face_scan_pic.jpg',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                Container(color: const Color(0xFF3B2F2F)),
+          ),
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x33000000), Color(0xCC000000)],
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 18,
+            right: 18,
+            bottom: 18,
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Healthy skin starts here',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800)),
+                  SizedBox(height: 4),
+                  Text('Tips, myths, facts and videos for every skin type.',
+                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String t, [String? sub]) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 22, bottom: 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        if (sub != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(sub,
+                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          ),
+      ]),
+    );
+  }
+
+  Widget _videoCard(_Video v) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _openVideo(v),
+        child: Container(
+          width: double.infinity,
+          height: 130,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [v.color, v.color.withOpacity(0.7)]),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Icon(v.icon, color: Colors.white70, size: 24),
+                    Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(v.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16)),
+                          const SizedBox(height: 2),
+                          Text(v.subtitle,
+                              style: const TextStyle(
+                                  color: Colors.white70, fontSize: 12)),
+                        ]),
+                  ]),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(
+                  color: Colors.white24, shape: BoxShape.circle),
+              child: const Icon(Icons.play_arrow,
+                  color: Colors.white, size: 34),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _tipCard(_Tip t) {
+    final color = _catColor(t.category);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _open(t),
+        child: Container(
+          decoration: BoxDecoration(
+              color: const Color(0xFFF5EFEC),
+              borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            Container(
+              width: 64,
+              height: 84,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [color, color.withOpacity(0.7)]),
+                borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(14)),
+              ),
+              child: Icon(_catIcon(t.category), color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: color.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Text(t.category,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: color)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(t.title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                      const SizedBox(height: 2),
+                      Text(t.summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.black87)),
+                    ]),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: Icon(Icons.chevron_right),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  String get _tipsSubtitle {
+    if (_filter == 'All') return 'General tips for every skin type';
+    if (_filter == 'Men') return "Grooming tips for men";
+    if (_filter == _mine) return 'Tips made for your skin type: $_filter';
+    return 'Tips made for $_filter skin';
   }
 
   @override
   Widget build(BuildContext context) {
     final tips = _visible;
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
           title: const Text('Explore'),
           backgroundColor: Colors.white,
@@ -385,15 +845,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('Beauty tips',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          if (_mine != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('Showing tips for your skin type: $_mine',
-                  style: const TextStyle(fontSize: 12, color: Colors.black54)),
-            ),
-          const SizedBox(height: 12),
+          _hero(),
+          _sectionTitle('Watch and learn', 'Tap to watch on YouTube'),
+          for (final v in _videos) _videoCard(v),
+          _sectionTitle('Beauty tips', _tipsSubtitle),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -410,46 +865,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          for (final t in tips)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => _open(t),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFF5EFEC),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Row(children: [
-                    Icon(t.category == 'Myth'
-                        ? Icons.help_outline
-                        : t.category == 'Fact'
-                            ? Icons.auto_awesome
-                            : Icons.lightbulb_outline),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(t.title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700, fontSize: 13)),
-                            const SizedBox(height: 2),
-                            Text(t.summary,
-                                style: const TextStyle(fontSize: 11)),
-                            const SizedBox(height: 4),
-                            Text(t.category,
-                                style: const TextStyle(
-                                    fontSize: 10, color: Colors.black54)),
-                          ]),
-                    ),
-                    const Icon(Icons.chevron_right),
-                  ]),
-                ),
-              ),
-            ),
+          const SizedBox(height: 14),
+          for (final t in tips) _tipCard(t),
         ],
       ),
     );

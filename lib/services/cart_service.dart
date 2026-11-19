@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+// One line in the cart: a product from one specific seller.
 class CartItem {
   final String offerId;
   final String sellerName;
   final String name;
   final String brand;
   final String image;
-  final double price;
+  final double price; // for display only. The database uses its own price.
   int qty;
 
   CartItem({
@@ -19,15 +20,7 @@ class CartItem {
     this.qty = 1,
   });
 
-  Map<String, dynamic> toJson() => {
-        'offer_id': offerId,
-        'seller': sellerName,
-        'name': name,
-        'brand': brand,
-        'image': image,
-        'price': price,
-        'qty': qty,
-      };
+  Map<String, dynamic> toRpc() => {'offer_id': offerId, 'qty': qty};
 }
 
 // 1250 -> "Tk 1,250"
@@ -41,6 +34,7 @@ String tk(num v) {
   return 'Tk $buf';
 }
 
+// The shopping cart. One shared cart for the whole app.
 class CartService extends ChangeNotifier {
   CartService._();
   static final CartService instance = CartService._();
@@ -94,8 +88,4 @@ class CartService extends ChangeNotifier {
     _items.clear();
     notifyListeners();
   }
-
-  // For place_order RPC: [{offer_id, qty}]
-  List<Map<String, dynamic>> toRpc() =>
-      _items.map((e) => {'offer_id': e.offerId, 'qty': e.qty}).toList();
 }

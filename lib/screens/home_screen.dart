@@ -8,6 +8,7 @@ import 'profile_screen.dart';
 import 'chatbot_screen.dart';
 import 'notifications_screen.dart';
 import 'skin_profile_screen.dart';
+import 'orders_screen.dart';
 
 const _bg = Color(0xFFF5EFEC);
 const _dark = Color(0xFF111111);
@@ -65,26 +66,44 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => _push(const ChatBotScreen()))),
         ]),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openScan,
-        backgroundColor: _dark,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.center_focus_strong, color: Colors.white),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.white,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _nav(Icons.home_outlined, 'Home', 0),
-            _nav(Icons.inventory_2_outlined, 'Products', 1),
-            const SizedBox(width: 40),
-            _nav(Icons.explore_outlined, 'Explore', 2),
-            _nav(Icons.person_outline, 'Profile', 3),
+      // Scan button floats ABOVE the bar, in the center.
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 4),
+          boxShadow: const [
+            BoxShadow(
+                color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
           ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _openScan,
+          backgroundColor: _dark,
+          elevation: 0,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.center_focus_strong, color: Colors.white),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFE6DAD4))),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 56,
+            child: Row(
+              children: [
+                _nav(Icons.home_outlined, 'Home', 0),
+                _nav(Icons.receipt_long_outlined, 'Orders', 4),
+                _nav(Icons.inventory_2_outlined, 'Products', 1),
+                _nav(Icons.explore_outlined, 'Explore', 2),
+                _nav(Icons.person_outline, 'Profile', 3),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -92,18 +111,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _nav(IconData icon, String label, int i) {
     final active = _tab == i;
-    return InkWell(
-      onTap: () {
-        if (i == 1) _push(const ProductsScreen());
-        if (i == 2) _push(const ExploreScreen());
-        if (i == 3) _push(const ProfileScreen());
-      },
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, color: active ? _dark : Colors.grey, size: 22),
-        Text(label,
-            style: TextStyle(
-                fontSize: 10, color: active ? _dark : Colors.grey)),
-      ]),
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          if (i == 1) _push(const ProductsScreen());
+          if (i == 2) _push(const ExploreScreen());
+          if (i == 3) _push(const ProfileScreen());
+          if (i == 4) _push(const OrdersScreen());
+        },
+        child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: active ? _dark : Colors.grey, size: 22),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 10, color: active ? _dark : Colors.grey)),
+            ]),
+      ),
     );
   }
 

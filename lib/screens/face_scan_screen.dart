@@ -1,11 +1,19 @@
-import 'package:camera/camera.dart';
+import 'dart:convert';
+import 'dart:js_interop';
+import 'dart:ui_web' as ui_web;
+
+import 'package:camera/camera.dart' show XFile;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:web/web.dart' as web;
+
 import '../services/onboarding_service.dart';
 import '../services/scan_service.dart';
 import 'skin_result_screen.dart';
 
-enum _CamState { intro, loading, ready, denied, blocked, notFound, failed }
+enum _CamState { intro, loading, ready, failed }
+
+int _viewCounter = 0;
 
 class FaceScanScreen extends StatefulWidget {
   const FaceScanScreen({super.key});
@@ -14,53 +22,88 @@ class FaceScanScreen extends StatefulWidget {
 }
 
 class _FaceScanScreenState extends State<FaceScanScreen> {
-  CameraController? _cam;
+  web.MediaStream? _stream;
+  web.HTMLVideoElement? _video;
+  String _viewType = '';
   _CamState _state = _CamState.intro;
   bool _busy = false;
+  String _err = '';
 
   @override
   void dispose() {
-    _cam?.dispose();
+    _stopCamera();
     super.dispose();
   }
 
-  // Opens the camera. This is also what triggers the permission prompt.
-  Future<void> _init() async {
-    setState(() => _state = _CamState.loading);
+  void _stopCamera() {
     try {
-      final cams = await availableCameras();
-      if (cams.isEmpty) {
-        if (mounted) setState(() => _state = _CamState.notFound);
+      final s = _stream;
+      if (s != null) {
+        for (final t in s.getTracks().toDart) {
+          t.stop();
+        }
+      }
+    } catch (_) {}
+    _stream = null;
+    _video = null;
+  }
+
+  // Opens the camera using the browser directly.
+  Future<void> _init() async {
+    setState(() {
+      _state = _CamState.loading;
+      _err = '';
+    });
+    _stopCamera();
+
+    try {
+      final constraints = web.MediaStreamConstraints(
+        video: true.toJS,
+        audio: false.toJS,
+      );
+      final stream = await web.window.navigator.mediaDevices
+          .getUserMedia(constraints)
+          .toDart;
+
+      final video =
+          web.document.createElement('video') as web.HTMLVideoElement;
+      video.autoplay = true;
+      video.muted = true;
+      video.setAttribute('playsinline', 'true');
+      video.srcObject = stream;
+      video.style.setProperty('width', '100%');
+      video.style.setProperty('height', '100%');
+      video.style.setProperty('object-fit', 'cover');
+      video.style.setProperty('transform', 'scaleX(-1)');
+
+      _viewCounter++;
+      final viewType = 'skintel-camera-$_viewCounter';
+      ui_web.platformViewRegistry.registerViewFactory(viewType, (int id) => video);
+
+      try {
+        await video.play().toDart;
+      } catch (_) {}
+
+      if (!mounted) {
+        for (final t in stream.getTracks().toDart) {
+          t.stop();
+        }
         return;
       }
-      final cam = cams.firstWhere(
-          (c) => c.lensDirection == CameraLensDirection.front,
-          orElse: () => cams.first);
-      await _cam?.dispose();
-      final c = CameraController(cam, ResolutionPreset.medium,
-          enableAudio: false);
-      await c.initialize();
-      if (!mounted) return;
       setState(() {
-        _cam = c;
+        _stream = stream;
+        _video = video;
+        _viewType = viewType;
         _state = _CamState.ready;
       });
-    } on CameraException catch (e) {
+      debugPrint('CAMERA OK (browser getUserMedia)');
+    } catch (e) {
+      debugPrint('CAMERA ERROR: $e');
       if (!mounted) return;
-      switch (e.code) {
-        case 'CameraAccessDenied':
-        case 'cameraPermission':
-          setState(() => _state = _CamState.denied);
-          break;
-        case 'CameraAccessDeniedWithoutPrompt':
-        case 'CameraAccessRestricted':
-          setState(() => _state = _CamState.blocked);
-          break;
-        default:
-          setState(() => _state = _CamState.failed);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _state = _CamState.failed);
+      setState(() {
+        _err = e.toString();
+        _state = _CamState.failed;
+      });
     }
   }
 
@@ -76,18 +119,34 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     }
   }
 
-  // Take a photo with the camera.
+  // Take a photo from the live video.
   Future<void> _scan() async {
-    if (_busy || _cam == null) return;
+    final v = _video;
+    if (_busy || v == null) return;
     try {
-      final photo = await _cam!.takePicture();
+      final w = v.videoWidth;
+      final h = v.videoHeight;
+      if (w == 0 || h == 0) {
+        throw Exception('Camera is not ready yet');
+      }
+      final canvas =
+          web.document.createElement('canvas') as web.HTMLCanvasElement;
+      canvas.width = w;
+      canvas.height = h;
+      final ctx = canvas.getContext('2d')! as web.CanvasRenderingContext2D;
+      ctx.drawImage(v, 0, 0);
+      final dataUrl = canvas.toDataURL('image/jpeg', 0.92.toJS);
+      final bytes = base64Decode(dataUrl.split(',').last);
+      final photo =
+          XFile.fromData(bytes, mimeType: 'image/jpeg', name: 'face.jpg');
       await _process(photo);
     } catch (e) {
+      debugPrint('TAKE PICTURE ERROR: $e');
       _failed();
     }
   }
 
-  // Choose a photo from the gallery (works when the camera does not).
+  // Choose a photo from the gallery.
   Future<void> _pickPhoto() async {
     if (_busy) return;
     try {
@@ -96,6 +155,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
       if (photo == null) return; // user cancelled
       await _process(photo);
     } catch (e) {
+      debugPrint('PICK PHOTO ERROR: $e');
       _failed();
     }
   }
@@ -132,6 +192,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
       final savedType = await _savedSkinType();
 
       if (!mounted) return;
+      _stopCamera();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -143,13 +204,14 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('SCAN ERROR: $e');
       _failed();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final ready = _state == _CamState.ready && _cam != null;
+    final ready = _state == _CamState.ready && _video != null;
     return Scaffold(
       backgroundColor: ready ? Colors.black : Colors.white,
       appBar: AppBar(
@@ -162,7 +224,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
     );
   }
 
-  // ---------- Permission / status screens ----------
+  // ---------- Status screens ----------
   Widget _statusView() {
     switch (_state) {
       case _CamState.loading:
@@ -173,27 +235,6 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
           'Camera access needed',
           'Skintel uses your camera to scan your face and detect your skin type. Your photo is only used for the scan.',
           'Allow camera',
-        );
-      case _CamState.denied:
-        return _message(
-          Icons.no_photography_outlined,
-          'Camera permission denied',
-          'We need camera access to scan your skin. Please allow it when asked.',
-          'Try again',
-        );
-      case _CamState.blocked:
-        return _message(
-          Icons.block,
-          'Camera access is blocked',
-          'Camera access is turned off for this app. Enable it in your browser or device settings, then try again.',
-          'Try again',
-        );
-      case _CamState.notFound:
-        return _message(
-          Icons.videocam_off_outlined,
-          'No camera found',
-          'We could not find a camera on this device.',
-          'Try again',
         );
       default:
         return _message(
@@ -207,7 +248,7 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
 
   Widget _message(IconData icon, String title, String text, String button) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon, size: 56, color: Colors.black87),
@@ -220,6 +261,15 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
           Text(text,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: Colors.black54)),
+          if (_err.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SelectableText('Error: $_err',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _init,
@@ -251,24 +301,28 @@ class _FaceScanScreenState extends State<FaceScanScreen> {
   // ---------- Camera view ----------
   Widget _scanner() {
     return Stack(fit: StackFit.expand, children: [
-      CameraPreview(_cam!),
-      Center(
-        child: Container(
-          width: 240,
-          height: 300,
-          decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(140)),
+      HtmlElementView(viewType: _viewType),
+      IgnorePointer(
+        child: Center(
+          child: Container(
+            width: 240,
+            height: 300,
+            decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 2),
+                borderRadius: BorderRadius.circular(140)),
+          ),
         ),
       ),
       const Positioned(
         top: 100,
         left: 24,
         right: 24,
-        child: Text(
-            'Face a window for soft light. No makeup or cream. Look straight at the camera.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+        child: IgnorePointer(
+          child: Text(
+              'Face a window for soft light. No makeup or cream. Look straight at the camera.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 13)),
+        ),
       ),
       Positioned(
         bottom: 40,

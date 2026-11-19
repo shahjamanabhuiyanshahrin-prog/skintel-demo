@@ -4,13 +4,13 @@ import '../services/api_service.dart';
 import '../services/cart_service.dart';
 import '../services/market_service.dart';
 import 'cart_screen.dart';
-import 'product_image.dart';
+import 'seller_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
-  final String? skinType; // "Dry" / "Oily" / null = all
-  final String? category; // e.g. "beard care men" (price search mode)
+  final String? skinType;
+  final String? category;
   final String? title;
-  final Widget? header; // e.g. scan result card
+  final Widget? header;
   const ProductsScreen(
       {super.key, this.skinType, this.category, this.title, this.header});
   @override
@@ -19,24 +19,17 @@ class ProductsScreen extends StatefulWidget {
 
 class _ProductsScreenState extends State<ProductsScreen> {
   final _ctrl = TextEditingController();
-
-  // 'local' / 'imported' = marketplace (Supabase)
-  // 'prices' = old price search (SerpAPI), only used with a category
-  late String _mode;
-
-  // prices mode
   late Future<List<Map<String, String>>> _future;
   String _sort = 'asc';
 
-  // marketplace mode
-  late Future<List<Product>> _marketFuture;
-  String _mSort = 'none'; // 'none', 'asc', 'desc'
-  String _mCategory = 'All';
+  late String _mode; // 'local', 'imported', 'prices'
+  late Future<List<Product>> _recFuture;
+  String _recSort = 'none';
+  String _recCategory = 'All';
+  String _skin = 'All skin types';
 
-  // chosen skin type (null = all skin types)
-  String? _skin;
-
-  static const List<String> _skinTypes = [
+  static const _skins = [
+    'All skin types',
     'Dry',
     'Oily',
     'Combination',
@@ -46,18 +39,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _skin = (widget.skinType == null || widget.skinType!.isEmpty)
-        ? null
-        : widget.skinType;
     _mode = widget.category != null ? 'prices' : 'local';
-    _load();
-    _loadMarket();
+    final s = widget.skinType;
+    if (s != null && _skins.contains(s)) _skin = s;
+    if (widget.category != null) {
+      _load();
+    } else {
+      _loadRec();
+    }
   }
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  void _loadRec() {
+    _recFuture = MarketService.getProducts();
   }
 
   void _load() {
@@ -68,16 +61,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
         sort: _sort);
   }
 
-  void _loadMarket() {
-    _marketFuture = MarketService.getProducts();
-  }
-
-  // 0 = made for this skin type, 1 = suits all skin types
-  int _matchRank(Product p) {
-    final s = _skin;
-    if (s == null || s.isEmpty) return 0;
-    final t = s.toLowerCase();
-    return p.skinTypes.any((e) => e.toLowerCase() == t) ? 0 : 1;
+  // Picture: real http link, else ask the Python backend.
+  Widget _imageBox(Product p, double iconSize) {
+    final placeholder = Container(
+      decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              colors: [Color(0xFFE8C4B4), Color(0xFFD9A58F)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight)),
+      child: Center(
+          child: Icon(Icons.spa, size: iconSize, color: Colors.white)),
+    );
+    final url = p.image.startsWith('http')
+        ? p.image
+        : Uri.http('localhost:5000', '/product_image',
+            {'name': p.name, 'brand': p.brand}).toString();
+    return Image.network(url,
+        fit: BoxFit.cover,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        loadingBuilder: (c, child, prog) =>
+            prog == null ? child : placeholder,
+        errorBuilder: (_, __, ___) => placeholder);
   }
 
   @override
@@ -92,6 +96,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
         elevation: 0,
         centerTitle: false,
         actions: [
+          IconButton(
+            tooltip: 'Sell on Skintel',
+            icon: const Icon(Icons.storefront_outlined),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SellerScreen())),
+          ),
           ListenableBuilder(
             listenable: CartService.instance,
             builder: (context, _) => Padding(
@@ -119,7 +129,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body: ListView(children: [
         if (widget.header != null) widget.header!,
         if (widget.category == null) _modeBar(),
-        if (_mode != 'prices') _skinBar(),
+        if (widget.category == null) _skinBar(),
         if (_mode == 'prices')
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -139,13 +149,62 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ),
             ),
           ),
-        if (_mode != 'prices') _marketList(),
-        if (_mode == 'prices') _pricesList(),
+        if (_mode != 'prices') _recList(),
+        if (_mode == 'prices')
+          FutureBuilder<List<Map<String, String>>>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final items = snap.data ?? [];
+              final hasPrices =
+                  items.any((p) => (p['price'] ?? '').isNotEmpty);
+              if (items.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Center(
+                    child: TextButton(
+                      onPressed: () => setState(_load),
+                      child: const Text('No products found. Tap to retry'),
+                    ),
+                  ),
+                );
+              }
+              return Column(children: [
+                if (hasPrices)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    child: Row(children: [
+                      const Text('Price: ', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 6),
+                      _sortChip('Low to high', 'asc'),
+                      const SizedBox(width: 8),
+                      _sortChip('High to low', 'desc'),
+                    ]),
+                  ),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 0.78),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) => _card(items[i]),
+                ),
+              ]);
+            },
+          ),
       ]),
     );
   }
-
-  // ---------------- tabs ----------------
 
   Widget _modeBar() {
     Widget tab(String label, String value) {
@@ -153,15 +212,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       return Padding(
         padding: const EdgeInsets.only(right: 20),
         child: InkWell(
-          onTap: () => setState(() {
-            _mode = value;
-            _mCategory = 'All';
-            if (value == 'prices') {
-              _load();
-            } else {
-              _loadMarket();
-            }
-          }),
+          onTap: () => setState(() => _mode = value),
           child: Column(children: [
             Text(label,
                 style: TextStyle(
@@ -180,18 +231,13 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          tab('Local', 'local'),
-          tab('Imported', 'imported'),
-          tab('More (prices)', 'prices'),
-        ]),
-      ),
+      child: Row(children: [
+        tab('Local', 'local'),
+        tab('Imported', 'imported'),
+      ]),
     );
   }
 
-  // skin type row
   Widget _skinBar() {
     return SizedBox(
       height: 44,
@@ -199,13 +245,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
         children: [
-          _pill('All skin types', _skin == null,
-              () => setState(() => _skin = null)),
-          for (final s in _skinTypes)
-            _pill(s, _skin == s, () => setState(() {
-                  _skin = s;
-                  _mCategory = 'All';
-                })),
+          for (final s in _skins)
+            _pill(s, s == _skin, () => setState(() => _skin = s)),
         ],
       ),
     );
@@ -233,11 +274,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  // ---------------- marketplace ----------------
+  static const _originRank = {'Korean': 0, 'American': 1, 'Japanese': 2};
 
-  Widget _marketList() {
+  Widget _recList() {
     return FutureBuilder<List<Product>>(
-      future: _marketFuture,
+      future: _recFuture,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
           return const Padding(
@@ -246,30 +287,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
           );
         }
         if (snap.hasError) {
+          debugPrint('products error: ${snap.error}');
           return Padding(
-            padding: const EdgeInsets.all(30),
+            padding: const EdgeInsets.all(40),
             child: Center(
-              child: Column(children: [
-                TextButton(
-                  onPressed: () => setState(_loadMarket),
-                  child: const Text('Could not load products. Tap to retry'),
-                ),
-                const SizedBox(height: 8),
-                Text('${snap.error}',
-                    textAlign: TextAlign.center,
-                    style:
-                        const TextStyle(fontSize: 10, color: Colors.black45)),
-              ]),
+              child: TextButton(
+                onPressed: () => setState(_loadRec),
+                child: const Text('Could not load products. Tap to retry'),
+              ),
             ),
           );
         }
-
-        // tab + skin type filter
-        final all = (snap.data ?? [])
-            .where((p) => _mode == 'local' ? p.isLocal : !p.isLocal)
-            .where((p) => p.suits(_skin))
-            .toList();
-
+        final chosen = _skin == 'All skin types' ? null : _skin;
+        final all = (snap.data ?? []).where((p) {
+          return _mode == 'local' ? p.isLocal : !p.isLocal;
+        }).toList();
         if (all.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(40),
@@ -282,37 +314,40 @@ class _ProductsScreenState extends State<ProductsScreen> {
           cats.add(p.category);
         }
         final catList = ['All', ...(cats.toList()..sort())];
-        final cat = catList.contains(_mCategory) ? _mCategory : 'All';
+        final cat = catList.contains(_recCategory) ? _recCategory : 'All';
 
-        var items = cat == 'All'
-            ? List<Product>.from(all)
-            : all.where((p) => p.category == cat).toList();
-
-        if (_mSort != 'none') {
-          // products without an available offer go to the end
-          items.sort((a, b) {
-            final pa = a.minPrice;
-            final pb = b.minPrice;
-            if (pa == null && pb == null) return a.name.compareTo(b.name);
-            if (pa == null) return 1;
-            if (pb == null) return -1;
-            final c = _mSort == 'asc' ? pa.compareTo(pb) : pb.compareTo(pa);
-            return c != 0 ? c : a.name.compareTo(b.name);
-          });
-        } else {
-          // 1) made for this skin type first
-          // 2) imported: Korean, American, Japanese first
-          // 3) then by name
-          items.sort((a, b) {
-            var c = _matchRank(a).compareTo(_matchRank(b));
-            if (c != 0) return c;
-            if (_mode == 'imported') {
-              c = a.originRank.compareTo(b.originRank);
-              if (c != 0) return c;
+        final indexed = (cat == 'All'
+                ? all
+                : all.where((p) => p.category == cat).toList())
+            .asMap()
+            .entries
+            .toList();
+        indexed.sort((a, b) {
+          // Products made for the chosen skin type come first.
+          if (chosen != null) {
+            final sa = a.value.suits(chosen) ? 0 : 1;
+            final sb = b.value.suits(chosen) ? 0 : 1;
+            if (sa != sb) return sa.compareTo(sb);
+          }
+          final pa = a.value.minPrice;
+          final pb = b.value.minPrice;
+          if (_recSort != 'none') {
+            if (pa == null && pb != null) return 1;
+            if (pa != null && pb == null) return -1;
+            if (pa != null && pb != null && pa != pb) {
+              return _recSort == 'asc' ? pa.compareTo(pb) : pb.compareTo(pa);
             }
-            return a.name.compareTo(b.name);
-          });
-        }
+          } else {
+            final av = pa == null ? 1 : 0;
+            final bv = pb == null ? 1 : 0;
+            if (av != bv) return av.compareTo(bv);
+            final ra = _originRank[a.value.origin] ?? 3;
+            final rb = _originRank[b.value.origin] ?? 3;
+            if (ra != rb) return ra.compareTo(rb);
+          }
+          return a.key.compareTo(b.key);
+        });
+        final items = indexed.map((e) => e.value).toList();
 
         final width = MediaQuery.of(context).size.width;
         final cols = width >= 1000 ? 6 : (width >= 700 ? 4 : 3);
@@ -325,7 +360,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
               children: [
                 for (final c in catList)
-                  _pill(c, c == cat, () => setState(() => _mCategory = c)),
+                  _pill(c, c == cat, () => setState(() => _recCategory = c)),
               ],
             ),
           ),
@@ -334,36 +369,30 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: Row(children: [
               const Text('Price: ', style: TextStyle(fontSize: 12)),
               const SizedBox(width: 6),
-              _mSortChip('Low to high', 'asc'),
+              _recSortChip('Low to high', 'asc'),
               const SizedBox(width: 8),
-              _mSortChip('High to low', 'desc'),
+              _recSortChip('High to low', 'desc'),
             ]),
           ),
-          if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(40),
-              child: Center(child: Text('No products in this category.')),
-            )
-          else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.56),
-              itemCount: items.length,
-              itemBuilder: (_, i) => _gridCard(items[i]),
-            ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.56),
+            itemCount: items.length,
+            itemBuilder: (_, i) => _gridCard(items[i]),
+          ),
         ]);
       },
     );
   }
 
-  Widget _mSortChip(String label, String value) {
-    final selected = _mSort == value;
+  Widget _recSortChip(String label, String value) {
+    final selected = _recSort == value;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
@@ -372,32 +401,35 @@ class _ProductsScreenState extends State<ProductsScreen> {
       showCheckmark: false,
       labelStyle: TextStyle(
           fontSize: 11, color: selected ? Colors.white : Colors.black),
-      onSelected: (_) => setState(() => _mSort = selected ? 'none' : value),
+      onSelected: (_) => setState(() => _recSort = selected ? 'none' : value),
     );
   }
 
   void _addOffer(Product p, Offer o) {
+    final img = p.image.startsWith('http')
+        ? p.image
+        : Uri.http('localhost:5000', '/product_image',
+            {'name': p.name, 'brand': p.brand}).toString();
     CartService.instance.add(
       offerId: o.id,
       sellerName: o.sellerName,
       name: p.name,
       brand: p.brand,
-      image: p.image,
+      image: img,
       price: o.price,
     );
-    _toast('Added to cart');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Added to cart (${o.sellerName})'),
+        duration: const Duration(seconds: 1)));
   }
 
-  String _priceText(Product p) {
-    if (p.cheapest != null) return 'From ${tk(p.cheapest!.price)}';
-    if (p.hasOffers) return 'Out of stock';
-    return 'No seller yet';
-  }
+  String _availability(Product p) =>
+      p.offers.isEmpty ? 'No seller yet' : 'Out of stock';
 
   Widget _gridCard(Product p) {
-    final canBuy = p.cheapest != null;
+    final best = p.cheapest;
     return Opacity(
-      opacity: canBuy ? 1 : 0.55,
+      opacity: best == null ? 0.55 : 1,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => _details(p),
@@ -407,14 +439,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
-                width: double.infinity,
-                child: ProductImage(
-                  image: p.image,
-                  name: p.name,
-                  brand: p.brand,
-                  category: p.category,
-                ),
-              ),
+                  width: double.infinity, child: _imageBox(p, 30)),
             ),
           ),
           const SizedBox(height: 8),
@@ -425,22 +450,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(p.category,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 10, color: Colors.black45)),
           const Spacer(),
           Row(children: [
             Expanded(
-              child: Text(_priceText(p),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w800)),
+              child: Text(best == null ? _availability(p) : tk(best.price),
+                  style: TextStyle(
+                      fontSize: best == null ? 10 : 12,
+                      fontWeight: FontWeight.w800)),
             ),
-            if (canBuy)
+            if (best != null)
               InkWell(
                 customBorder: const CircleBorder(),
-                onTap: () => _addOffer(p, p.cheapest!),
+                onTap: () => _addOffer(p, best),
                 child: Container(
                   width: 28,
                   height: 28,
@@ -455,8 +477,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  // Tap a card: details + every seller's offer
   void _details(Product p) {
+    final best = p.cheapest;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -474,15 +496,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: ProductImage(
-                        image: p.image,
-                        name: p.name,
-                        brand: p.brand,
-                        category: p.category,
-                      ),
-                    ),
+                        width: 96, height: 96, child: _imageBox(p, 36)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -499,7 +513,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           const SizedBox(height: 4),
                           Text(p.brand, style: const TextStyle(fontSize: 12)),
                           const SizedBox(height: 6),
-                          Text(_priceText(p),
+                          Text(
+                              best == null
+                                  ? _availability(p)
+                                  : 'From ${tk(best.price)}',
                               style: const TextStyle(
                                   fontSize: 15, fontWeight: FontWeight.w800)),
                         ]),
@@ -509,112 +526,58 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   const SizedBox(height: 14),
                   Text(p.description, style: const TextStyle(fontSize: 13)),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 const Text('Sellers',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
                 if (p.offers.isEmpty)
                   const Text('No seller has listed this product yet.',
-                      style: TextStyle(fontSize: 12, color: Colors.black54))
-                else
-                  for (final o in p.offers)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                          color: const Color(0xFFF5EFEC),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Row(children: [
-                        Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(o.sellerName,
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700)),
-                                const SizedBox(height: 2),
-                                Text(
-                                    o.available
-                                        ? '${tk(o.price)} · ${o.stock} in stock'
-                                        : '${tk(o.price)} · Out of stock',
-                                    style: const TextStyle(fontSize: 12)),
-                              ]),
-                        ),
-                        ElevatedButton(
-                          onPressed: o.available
-                              ? () {
-                                  _addOffer(p, o);
-                                  Navigator.pop(sheetContext);
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.black,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20))),
-                          child: const Text('Add'),
-                        ),
-                      ]),
-                    ),
+                      style: TextStyle(fontSize: 12, color: Colors.black54)),
+                for (final o in p.offers)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFF5EFEC),
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(o.sellerName,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                  o.inStock
+                                      ? 'In stock (${o.stock})'
+                                      : 'Out of stock',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: Colors.black54)),
+                            ]),
+                      ),
+                      Text(tk(o.price),
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w800)),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: o.inStock
+                            ? () {
+                                _addOffer(p, o);
+                                Navigator.pop(sheetContext);
+                              }
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white),
+                        child: const Text('Add'),
+                      ),
+                    ]),
+                  ),
               ]),
         ),
       ),
-    );
-  }
-
-  // ---------------- prices mode (SerpAPI, old) ----------------
-
-  Widget _pricesList() {
-    return FutureBuilder<List<Map<String, String>>>(
-      future: _future,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Padding(
-            padding: EdgeInsets.all(40),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final items = snap.data ?? [];
-        final hasPrices = items.any((p) => (p['price'] ?? '').isNotEmpty);
-        if (items.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(40),
-            child: Center(
-              child: TextButton(
-                onPressed: () => setState(_load),
-                child: const Text('No products found. Tap to retry'),
-              ),
-            ),
-          );
-        }
-        return Column(children: [
-          if (hasPrices)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              child: Row(children: [
-                const Text('Price: ', style: TextStyle(fontSize: 12)),
-                const SizedBox(width: 6),
-                _sortChip('Low to high', 'asc'),
-                const SizedBox(width: 8),
-                _sortChip('High to low', 'desc'),
-              ]),
-            ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.78),
-            itemCount: items.length,
-            itemBuilder: (_, i) => _card(items[i]),
-          ),
-        ]);
-      },
     );
   }
 
@@ -654,8 +617,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   void _toast(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(text), duration: const Duration(seconds: 1)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   Widget _card(Map<String, String> p) {
@@ -677,7 +639,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               borderRadius: BorderRadius.circular(8),
               child: SizedBox(
                 width: double.infinity,
-                child: (p['image'] ?? '').isEmpty
+                child: p['image']!.isEmpty
                     ? icon
                     : Image.network(p['image']!,
                         fit: BoxFit.cover,
@@ -687,7 +649,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(p['name'] ?? '',
+          Text(p['name']!,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style:

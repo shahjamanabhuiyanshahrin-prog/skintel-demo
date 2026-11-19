@@ -6,6 +6,16 @@ import 'orders_screen.dart';
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
 
+  // If the product has a real http picture use it,
+  // otherwise ask the Python backend for the picture.
+  String _imageUrl(CartItem it) {
+    if (it.image.startsWith('http')) return it.image;
+    return Uri.http('localhost:5000', '/product_image', {
+      'name': it.name,
+      'brand': it.brand,
+    }).toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = CartService.instance;
@@ -89,12 +99,10 @@ class CartScreen extends StatelessWidget {
           child: SizedBox(
             width: 64,
             height: 64,
-            child: it.image.isEmpty
-                ? icon
-                : Image.network(it.image,
-                    fit: BoxFit.cover,
-                    webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
-                    errorBuilder: (_, __, ___) => icon),
+            child: Image.network(_imageUrl(it),
+                fit: BoxFit.cover,
+                webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                errorBuilder: (_, __, ___) => icon),
           ),
         ),
         const SizedBox(width: 12),
@@ -106,6 +114,8 @@ class CartScreen extends StatelessWidget {
                 style:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
+            Text('Sold by ${it.sellerName}',
+                style: const TextStyle(fontSize: 11, color: Colors.black54)),
             Text(tk(it.price), style: const TextStyle(fontSize: 12)),
             Row(children: [
               IconButton(

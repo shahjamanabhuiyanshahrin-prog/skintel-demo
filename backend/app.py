@@ -134,7 +134,7 @@ def fetch_shopping(query):
         "hl": "en",
         "api_key": os.environ["SERPAPI_API_KEY"],
     })
-    with urllib.request.urlopen("https://serpapi.com/search.json?" + params, timeout=20) as r:
+    with urllib.request.urlopen("https://serpapi.com/search.json?" + params, timeout=30) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -404,25 +404,36 @@ def recommendations():
 # ---------------------------------------------------------------------------
 # Product picture for the shop screen.
 # The app asks: /product_image?name=...&brand=...
-# We search Google Shopping (SerpAPI) and only accept a result whose title
-# has the BRAND and most words of the PRODUCT NAME. If nothing matches well,
-# we send no picture (the app shows a colour box instead of a wrong picture).
-# Good answers are saved in image_cache_v2.json (one search per product).
+# Steps for every product:
+#   1) Find the product in catalog.py and read the picture (og:image) from
+#      its shop page (Shajgoj, Arogga, Rokomari). This is the exact picture.
+#   2) Search Google Shopping (SerpAPI): strict title match, then softer.
+#   3) No good match: use a search picture that no other product uses yet,
+#      so different products get different pictures.
+#   4) Still nothing: answer 404 and the app shows the colour icon.
+# Pictures are saved in image_cache_v5.json (one lookup per product).
 # ---------------------------------------------------------------------------
 import threading
+import zlib
 
-IMAGE_CACHE_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "image_cache_v2.json"
-)
+_BASE = os.path.dirname(os.path.abspath(__file__))
+IMAGE_CACHE_FILE = os.path.join(_BASE, "image_cache_v5.json")
+OLD_CACHE_FILE = os.path.join(_BASE, "image_cache_v2.json")  # only strict matches
 _image_lock = threading.Lock()
-_image_urls = {}  # search text -> picture link ("" = nothing good found)
+_serp_gate = threading.Semaphore(3)  # max 3 searches at the same time
+_image_urls = {}  # search text -> picture link
 _image_bytes = {}  # picture link -> (content type, bytes)
 
-try:
-    with open(IMAGE_CACHE_FILE, "r", encoding="utf-8") as _f:
-        _image_urls = json.load(_f)
-except Exception:
-    _image_urls = {}
+for _file in (OLD_CACHE_FILE, IMAGE_CACHE_FILE):
+    try:
+        with open(_file, "r", encoding="utf-8") as _f:
+            for _k, _v in json.load(_f).items():
+                if _v:
+                    _image_urls[_k] = _v
+    except Exception:
+        pass
+
+_used_urls = set(_image_urls.values())  # pictures already given to a product
 
 _STOP_WORDS = {"the", "and", "for", "with", "of", "demo", "listing", "by"}
 
@@ -444,19 +455,31 @@ def _squash(text):
     return re.sub(r"[^a-z0-9]", "", text.lower())
 
 
-def pick_best_image(results, name, brand):
-    """Returns the picture link of the best matching result, or ''."""
+def fetch_shopping_retry(query):
+    """SerpAPI search, max 3 at a time, one retry if it fails."""
+    last = None
+    for _ in range(2):
+        try:
+            with _serp_gate:
+                return fetch_shopping(query)
+        except Exception as e:
+            last = e
+    raise last
+
+
+def pick_best_image(results, name, brand, need):
+    """Best result whose title has the brand and at least `need` (0 to 1)
+    of the product name words. Returns the picture link or ''."""
     brand_key = _squash(brand)
     brand_words = set(_words(brand))
     name_words = [w for w in _words(name) if w not in brand_words]
 
-    best_url, best_score = "", 0.0
+    best_url, best_score = "", -1.0
     for r in results:
         title = str(r.get("title", ""))
         thumb = str(r.get("thumbnail", "")).strip()
         if not thumb.startswith("http"):
             continue
-        # the brand must be in the title
         if brand_key and brand_key not in _squash(title):
             continue
         title_words = set(_words(title))
@@ -467,11 +490,48 @@ def pick_best_image(results, name, brand):
         if score > best_score:
             best_url, best_score = thumb, score
 
-    need = 0.6 if name_words else 0.0
     if best_url and best_score >= need:
-        print(f"image match ok: {brand} / {name} (score {best_score:.2f})")
         return best_url
-    print(f"image match NOT found: {brand} / {name}")
+    return ""
+
+
+def pick_unused(results, key):
+    """A search picture that no other product has yet. If all are used,
+    still pick one (chosen by the product name)."""
+    thumbs = []
+    for r in results:
+        thumb = str(r.get("thumbnail", "")).strip()
+        if thumb.startswith("http") and thumb not in thumbs:
+            thumbs.append(thumb)
+    if not thumbs:
+        return ""
+    fresh = [t for t in thumbs if t not in _used_urls]
+    pool = fresh or thumbs
+    return pool[zlib.crc32(key.encode("utf-8")) % len(pool)]
+
+
+def catalog_picture(name, brand):
+    """Picture from the shop page of the same product in catalog.py."""
+    name_words = _words(name)
+    brand_key = _squash(brand)
+    if not name_words:
+        return ""
+    best_urls, best_score = [], 0.0
+    for item in catalog._ITEMS:
+        c_name, c_brand, urls = item[0], item[1], item[6]
+        c_key = _squash(c_brand)
+        if brand_key and c_key and brand_key not in c_key and c_key not in brand_key:
+            continue
+        c_words = set(_words(c_name))
+        score = sum(1 for w in name_words if w in c_words) / len(name_words)
+        if score > best_score:
+            best_urls, best_score = urls, score
+    if best_score < 0.8:
+        return ""
+    for u in best_urls:
+        img = page_info(u).get("image", "")
+        if img.startswith("http"):
+            return img
     return ""
 
 
@@ -486,16 +546,52 @@ def find_image_url(name, brand):
         return ""
     if key in _image_urls:
         return _image_urls[key]
-    if not os.environ.get("SERPAPI_API_KEY"):
-        return ""
+
+    url = ""
+
+    # Step 1: exact picture from the shop page (no SerpAPI needed).
     try:
-        data = fetch_shopping(query)
+        url = catalog_picture(name, brand)
     except Exception as e:
-        print("image search error:", type(e).__name__, str(e)[:120])
-        return ""  # do not save, try again next time
-    url = pick_best_image(data.get("shopping_results", []), name, brand)
+        print("catalog picture error:", type(e).__name__)
+    if url:
+        print(f"image ok (shop page): {brand} / {name}")
+
+    # Step 2: Google Shopping search.
+    results = []
+    if not url and os.environ.get("SERPAPI_API_KEY"):
+        try:
+            data = fetch_shopping_retry(query)
+            results = data.get("shopping_results", [])
+        except Exception as e:
+            print("image search error:", type(e).__name__, str(e)[:120])
+            return ""  # do not save, try again next time
+        for need in (0.6, 0.3):
+            url = pick_best_image(results, name, brand, need)
+            if url:
+                print(f"image ok (search match {need}): {brand} / {name}")
+                break
+
+        # Step 3: a picture nobody else uses yet.
+        if not url:
+            if not results and brand:
+                try:
+                    results = fetch_shopping_retry(f"{brand} skin care").get(
+                        "shopping_results", [])
+                except Exception as e:
+                    print("brand search error:", type(e).__name__, str(e)[:120])
+            with _image_lock:
+                url = pick_unused(results, key)
+            if url:
+                print(f"image ok (similar picture): {brand} / {name}")
+
+    if not url:
+        print(f"image NOT found: {brand} / {name}")
+        return ""
+
     with _image_lock:
         _image_urls[key] = url
+        _used_urls.add(url)
         _save_image_cache()
     return url
 
